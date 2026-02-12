@@ -1,0 +1,128 @@
+---
+title: "HW 2"
+format:
+  pdf:
+    documentclass: scrartcl
+    pdf-engine: xelatex
+date: 2024-02-09
+authors:
+  - name: "Rigoberto Jaciel Martinez Madriz"
+    affiliation: "ITESO"
+---
+
+# Tarea 2
+
+Objetivo: Construir un portafolio compuesto por maximo 4 activos financieros, buscando la menor correlación posible, ponderados igualitariamente.
+
+Inicialmente comenzamos por definir la ventana de tiempo para el análisis de los precios, así como los tickets de los activos seleccionados para minimizar la correlación del portafolio.
+
+```{python}
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import yfinance as yf
+```
+
+```{python}
+start_date = "2021-01-01"
+end_date = "2026-02-03"
+```
+
+```{python}
+tickets = ['VALUEGFO.MX', 'FPLUS16.MX', 'KUOB.MX', 'LAMOSA.MX']
+```
+
+```{python}
+num_assets = len(tickets)
+
+weight = np.ones(num_assets) / num_assets
+weight
+```
+
+```{python}
+prices = yf.download(tickets,start=start_date, end=end_date)["Close"]
+prices.head(3)
+```
+
+## Rendimiento del portafolio
+
+Obtenemos el rendimiento de los activos
+
+```{python}
+returns = prices.pct_change().dropna()
+returns.head(3)
+```
+
+Calculamos el rendimiento promedio por activo
+
+```{python}
+assets_return = returns.mean()
+assets_return
+```
+
+Calculamos el rendimiento del portafolio diario
+
+```{python}
+portfolio_return = np.sum(assets_return * weight)
+portfolio_return
+```
+
+Calculamos el rendimiento anualizado del portafolio
+
+```{python}
+portfolio_return_annualized = portfolio_return * 252
+portfolio_return_annualized
+```
+
+## Varianza del portafolio
+
+Varianza del portafolio diaria
+
+```{python}
+portfolio_variance = weight.T @ returns.cov() @ weight
+portfolio_variance
+```
+
+Varianza del portafolio anualizada
+
+```{python}
+portfolio_variance_annualized = portfolio_variance * 252
+portfolio_variance_annualized
+```
+
+## Volatilidad del portafolio
+
+Volatilidad del portafolio diaria
+
+```{python}
+portfolio_volatility = np.sqrt(portfolio_variance)
+portfolio_volatility
+```
+
+```{python}
+portfolio_volatility_annualized = np.sqrt(portfolio_variance_annualized)
+portfolio_volatility_annualized
+```
+
+## Matriz de correlación
+
+```{python}
+correlation_matrix = returns.corr()
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
+plt.yticks(rotation=75)
+plt.title('Matriz de Correlación')
+plt.show()
+```
+
+## Conclusi
+
+### Riesgo no sistemático
+
+Respecto al riesgo no sistematico de cada activo podemos observar que estos cuentan con una magnitud muy cercana a cero, he incluso inferior a 0.3, lo que nos indica que el riesgo no sistemático de cada activo es bajo, lo que es positivo para el portafolio, ya que esto implica que el riesgo total del portafolio se ve menos afectado por eventos específicos de cada activo, por lo que el residual del riesgo del portafolio lo podriamos considerar como el riesgo sistematico que captura cada activo del mercado. 
+
+### Metricas de rendimiento y riesgo
+
+Con relación a las medidas de rendi
