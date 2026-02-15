@@ -84,6 +84,7 @@ class asset_research:
     ) -> pd.DataFrame:
         if self.prices.empty:
             self.download_prices()
+            
         select = self._normalize_select(tickers)
         return self._select_columns(self.prices, select)
 
