@@ -1,0 +1,49 @@
+---
+title: "Comparativa estrategia Pasiva vs Activa"
+subtitle: "Tarea 3"
+autor: "Rigoberto J. Martinez Madriz"
+format:
+    pdf:
+        toc: True
+---
+
+# Estrategia Activa
+
+Tu estrategia de inversión activa contiene las siguientes acciones con ponderaciones equitativas: 
+
+| Empresa | Ticker |
+| --- | --- |
+| JPMorgan Chase & Co. | JPM |
+| Visa Inc. | V |
+| The Goldman Sachs Group, Inc. | GS |
+| The Progressive Corporation | PGR |
+
+
+
+
+```{python}
+#| echo: false
+from dotenv import load_dotenv
+import sys
+import os
+
+load_dotenv()
+sys.path.insert(0, os.path.join(os.environ["PORTFOLIO_ROOT"], "src"))
+```
+
+```{python}
+import pandas as pd
+import numpy as np
+
+from portfolio_utils import AssetsResearch
+```
+
+```{python}
+tickets = ["JPM", "V", "GS", "PGR"]
+```
+
+
+```{python}
+portfolio = AssetsResearch(tickets)
+
+```

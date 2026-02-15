@@ -1,6 +1,7 @@
 # === CHUNK INDEPENDIENTE: CorrelationPortfolioSelector ===
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence
+from .AssetsResearch import AssetsResearch 
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,7 @@ import yfinance as yf
 
 
 @dataclass
-class CorrelationPortfolioSelector:
+class CorrelationPortfolioSelector(AssetsResearch):
     """
     Selector escalable para construir portafolios de minima correlacion por grupos.
 
@@ -47,7 +48,7 @@ class CorrelationPortfolioSelector:
             start=self.start_date,
             end=self.end_date,
             progress=False,
-            auto_adjust=False,
+            auto_adjust=True,
         )
         if raw.empty:
             return pd.DataFrame()
@@ -63,6 +64,7 @@ class CorrelationPortfolioSelector:
                 raise ValueError(
                     f"price_field '{self.price_field}' no existe en la descarga."
                 )
+                            
             prices = raw[[self.price_field]].copy()
             prices.columns = [unique_tickers[0]]
 
@@ -321,3 +323,8 @@ class CorrelationPortfolioSelector:
             final_size=final_size,
         )
         return {"group_ranking": ranking, **portfolio}
+    
+
+if __name__ == "__main__":
+    
+    pass

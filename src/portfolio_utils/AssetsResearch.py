@@ -9,7 +9,7 @@ import yfinance as yf
 
 
 @dataclass
-class asset_research:
+class AssetsResearch:
     """
     Utility class to research multiple assets using the same metrics
     covered in module 01 notebooks.
@@ -177,6 +177,6 @@ class asset_research:
 
 # Optional alias with standard class naming
 if __name__ == "__main__":
-    AssetResearch = asset_research(["^GSPC"], start="2020-09-30")
+    gspc = AssetsResearch(["^GSPC"], start="2020-09-30")
     
-    print(AssetResearch.annual_return())
+    print(gspc.annual_return())
