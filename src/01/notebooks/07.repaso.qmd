@@ -2,24 +2,21 @@
 title: "Comparativa estrategia Pasiva vs Activa"
 subtitle: "Tarea 3"
 autor: "Rigoberto J. Martinez Madriz"
+date: "2025-02-16"
 format:
-    pdf:
-        toc: True
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+
 ---
-
-# Estrategia Activa
-
-Tu estrategia de inversión activa contiene las siguientes acciones con ponderaciones equitativas: 
-
-| Empresa | Ticker |
-| --- | --- |
-| JPMorgan Chase & Co. | JPM |
-| Visa Inc. | V |
-| The Goldman Sachs Group, Inc. | GS |
-| The Progressive Corporation | PGR |
-
-
-
 
 ```{python}
 #| echo: false
@@ -34,16 +31,349 @@ sys.path.insert(0, os.path.join(os.environ["PORTFOLIO_ROOT"], "src"))
 ```{python}
 import pandas as pd
 import numpy as np
+import warnings
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set_style("darkgrid")
 
 from portfolio_utils import AssetsResearch
+import yfinance as yf
+
+try:
+    from pandas.errors import Pandas4Warning
+    warnings.filterwarnings("ignore", category=Pandas4Warning, module="yfinance")
+except Exception:
+    pass
+```
+
+
+# Estrategia Activa
+
+## Resumen ejecutivo
+
+Tu estrategia de inversión activa contiene las siguientes acciones con ponderaciones equitativas: 
+
+| Empresa | Ticker |
+| --- | --- |
+| JPMorgan Chase & Co. | JPM |
+| Visa Inc. | V |
+| The Goldman Sachs Group, Inc. | GS |
+| The Progressive Corporation | PGR |
+
+Todas y cada una de estas empresas pertenecen al sector de los servicios financieros, sin embargo, clasificados en función de la ponderación de sus ingresos ninguno se encuentra dentro del mismo subsector, como podría ser JP, Diversified United States Commercial; Visa, Specialty Finance and Services; Goldman, Diversified Investment; o Progressive, Commercial Insurance.
+
+Todos aunque se encuentren dentro de un mismo sector, dada la composición de sus ingresos se puede presumir que tiene modelos de negocios diferentes y por tanto, métricas de valuación distintas.
+
+Es decir, dado que cada compañía genera ingresos de diferentes maneras, cada una de estas posee diferentes mercado objetivo, productos específicos y procesos de generación de efectivo. Por tanto, lo ideal sería realizar una valuación en función de las particularidades de cada compañía y de esta forma obtener un precio objetivo con la intención de evaluar la rentabilidad de esta inversión.
+
+En primer lugar, tenemos a **JP Morgan (JPM)** quien cuenta con dos grandes líneas de negocio, Banking e Investment Services, diversificados en la mismo nivel.
+
+![JPM Revenue Exposure by Sector / Industry](img/RBICS_with_revenue_JPM.png)
+
+Asimismo, en el caso de **Visa (V)**, este solo cuenta con una única fuente de ingresos, la cual se relaciona con el servicio de pasarela de pago que provee a los diferentes negocios como medio de pago para sus clientes.
+
+![V Revenue Exposure by Sector / Industry](img/RBICS with revenue Visa.png)
+
+Por otro lado, esta **Goldman Sachs (GS)**, quien es prácticamente un banco de inversión dado que el 95.99% de sus ingresos de su último reporte corresponde con este clase de servicio, claro que después de este nodo se desprenden una gran cantidad de líneas de negocio, sin embargo, el grueso de sus ingresos se encuentran clasificados en esta categoría.
+
+![GS Revenue Exposure by Sector / Industry](img/RBICS with revenue GS.png)
+
+Por último, en la composición de este portafolio se encuentra **Progressive Corporation (PGR)**, la cual es una compañía dedicada exclusivamente a la venta de seguros.
+
+![PGR Revenue Exposure by Sector / Industry](img/RBICS with revenue PGR.png)
+
+Sin embargo, existen métricas "universales" que nos podrían ayudar a comparar la rentabilidad de las diferentes inversiones.
+
+| Empresa | EPS | PE | Dividend Yield (%) |
+| --- | ---: | ---: | ---: |
+| JPM-US | 20.02 | 15.11 | 1.98 |
+| V-US | 10.55 | 29.76 | 0.85 |
+| GS-US | 51.32 | 17.64 | 1.99 |
+| PGR-US | 19.23 | 11.84 | 6.80 |
+
+- **EPS (Earnings Per Share):** utilidad neta atribuible a accionistas comunes / acciones promedio ponderadas.
+- **PE (Price to Earnings):** precio por acción / EPS.
+- **Dividend Yield:** tasa de ingreso efectivo que paga una acción en relación con su precio actual.
+
+Dos de estos activos pueden ser clasificados como defensivos y en este sentido hacen mucho sentido sus cifras, dado que tanto para JPM y PGR los múltiplos a los que se pagan son relativamente conservadores, así como un rendimiento promedio en el mercado.
+
+Por otro lado está Visa, quien se paga a un múltiplo significativamente mayor (PE cercano a 30) porque el mercado la percibe como un negocio de alta calidad y crecimiento estructural: una red de pagos con alta escalabilidad, márgenes elevados y baja intensidad de capital. Esa “prima” suele venir acompañada de un **Dividend Yield** menor, ya que gran parte del retorno esperado se explica más por apreciación del precio (y, en muchos casos, recompras) que por pago de dividendos.
+
+Finalmente, GS presenta un PE intermedio pese a tener un EPS elevado, lo cual puede interpretarse como una señal de que el mercado descuenta mayor ciclicidad y variabilidad de utilidades (por su exposición a mercados y banca de inversión). Su rendimiento por dividendo es similar al de JPM, sugiriendo un perfil más balanceado entre ingreso y crecimiento.
+
+En conjunto, el portafolio combina componentes más defensivos (JPM, PGR), una apuesta de crecimiento de alta calidad (V) y una exposición más cíclica (GS), lo que ayuda a diversificar las fuentes de retorno dentro del sector financiero.
+
+| Concepto               | JPM      | V       | GS      | PGR    |
+|------------------------|----------|---------|---------|--------|
+| Stock price            | 302.55   | 314.08  | 905.14  | 204.53 |
+| Assets                 | 4,424,900| 96,814  | 1,810,000| 123,039|
+| Liabilities            | 4,062,462| 58,037  | 1,685,000| 92,716 |
+| Equity                 | 362,438  | 38,777  | 125,000 | 30,323 |
+| Share out              | 2,722    | 1,906   | 299     | 586    |
+| Tobin’s q (Ratio)      | 1.10     | 6.78    | 1.08    | 1.73   |
+
+_all figures in millions of U.S. Dollar_
+
+- **Tobin’s q:** compara la valoración de mercado de la empresa contra el valor de sus activos. En términos prácticos, un `q` mayor a 1 sugiere que el mercado está dispuesto a pagar una prima sobre la base de activos (por expectativas de crecimiento, rentabilidad, intangibles o poder de mercado); un `q` cercano a 1 indica una valoración más “anclada” al balance; y un `q` menor a 1 sugeriría descuento relativo.
+
+En este set, **JPM (1.10)** y **GS (1.08)** presentan un `q` muy cercano a 1. Esto es consistente con modelos de negocio intensivos en balance, donde buena parte del valor se explica por activos y pasivos financieros (y donde el mercado suele castigar o premiar más por ciclo, riesgo y calidad del balance que por “intangibles” puros). En ambos casos, el tamaño de activos y pasivos es enorme en relación con el equity, lo que también refleja el apalancamiento inherente a la banca, haciendo que pequeñas variaciones en valuación o en expectativas de rentabilidad puedan mover significativamente la percepción de riesgo.
+
+Por otro lado, **PGR (1.73)** ya muestra una prima más marcada. En aseguradoras, esa prima suele estar ligada a disciplina de suscripción, eficiencia operativa y capacidad de crecer utilidades sin expandir proporcionalmente el balance. Aquí, aunque su equity (30,323) es menor, el mercado aparenta asignar valor adicional por la calidad del negocio y su generación de retornos, lo que se refleja en un `q` por encima de 1.
+
+Finalmente, **V (6.78)** es el outlier: un `q` extremadamente alto. Esto suele ocurrir en empresas donde el valor está mucho más en los **intangibles y en la escalabilidad del modelo** que en la magnitud de activos físicos o financieros. Visa opera una red de pagos con efectos de red, márgenes elevados y baja intensidad de capital relativa; por eso su valuación se despega del balance y el mercado paga una prima grande frente a sus activos contables. En otras palabras, el “activo” más valioso no se ve completo en el rubro de Assets del balance.
+
+Es por lo anterior que podemos decir que, el ratio `q` ayuda a distinguir dos perfiles dentro del mismo universo financiero (portfolio): entidades más “balance-driven” (JPM, GS) con valoración cercana al valor de activos, una aseguradora con prima moderada (PGR) y una plataforma/red con fuerte componente intangible (V) cuyo valor de mercado está dominado por expectativas de crecimiento y ventajas competitivas.
+
+Para finalizar, el análisis de los precios de los activos.
+
+| Empresa | Market Price (USD) | Book Price (USD) | P/B  | Objective Price (USD) | O/P  | 1Y return (%) |
+|--------|---------------------:|-----------------:|-----:|----------------------:|-----:|--------------:|
+| JPM-US |               302.55 |           133.14 | 2.27 |                350.92 | 1.16 |          9.52 |
+| V-US   |               314.08 |            20.34 | 15.44|                405.15 | 1.29 |        -11.23 |
+| GS-US  |               905.14 |           418.06 | 2.17 |                960.62 | 1.06 |         37.03 |
+| PGR-US |               204.53 |            51.71 | 3.96 |                245.30 | 1.20 |        -22.11 |
+
+Visto como portafolio, estos cuatro activos combinan dos perfiles “balance-driven” (JPM y GS), una aseguradora con prima moderada (PGR) y un negocio claramente “asset-light” con fuerte componente intangible (V). Esa mezcla explica por qué los múltiplos y los retornos recientes se comportan de forma tan dispar.
+
+En primer lugar, el **P/B** refleja cómo el mercado valora a cada compañía respecto a su capital contable. **JPM (2.27)** y **GS (2.17)** cotizan a múltiplos relativamente cercanos entre sí, consistentes con instituciones donde el balance y la rentabilidad ajustada a riesgo dominan la valoración. **PGR (3.96)** muestra una prima mayor, común cuando el mercado reconoce disciplina de suscripción, eficiencia y calidad en la generación de utilidades. En contraste, **V (15.44)** es el outlier: un P/B tan elevado suele indicar que gran parte del valor proviene de intangibles, escalabilidad y poder de red más que de activos contables.
+
+En segundo lugar, el **O/P** sugiere que, según el objetivo de precio usado, hay margen de apreciación en todo el portafolio (todos > 1). El mayor “upside” está en **V (1.29)** y **PGR (1.20)**, mientras que **JPM (1.16)** es moderado y **GS (1.06)** es el más acotado, lo que puede interpretarse como que GS ya capturó parte importante de su recuperación.
+
+Finalmente, el **retorno a 1 año** confirma esa lectura: **GS (+37.03%)** y **JPM (+9.52%)** han tenido mejor desempeño, mientras **V (-11.23%)** y **PGR (-22.11%)** han sufrido correcciones. Esto sugiere que el portafolio no está moviéndose por un solo driver: una parte está siendo favorecida por ciclo/valoración del sector financiero (GS/JPM), mientras otra parte refleja ajuste de expectativas o compresión de múltiplos (V/PGR).
+
+En conjunto, podemos concluir que el portafolio se encuentra razonablemente diversificado dentro del sector.
+
+## Métricas de riesgo y rendimiento del portafolio
+
+Definimos el conjunto de tickets del portafolio y los pesos
+
+```{python}
+tickers = ["JPM", "V", "GS", "PGR"]
+w =  np.ones(len(tickers)) / len(tickers)
+```
+
+Descargamos la información correspondiente al precio de los activos.
+
+```{python}
+#| warning: false
+#| message: false
+
+start_date = "2018-01-01"
+end_date = "2026-02-13"
+
+portfolio_prices = yf.download(
+    tickers=tickers,
+    start=start_date,
+    end=end_date,
+    auto_adjust=True,
+    progress=False,
+)["Close"]
+
+portfolio_prices.head(3)
+```
+
+### Rendimiento
+
+```{python}
+def geometric_mean(returns : pd.DataFrame | pd.Series) -> pd.Series | float:
+    result1 = (1 + returns)
+    result2 = result1.prod()
+    result3 = result2 ** (1 / len(returns))
+    return result3 - 1
+
+
+def harmonic_measure(returns: pd.DataFrame | pd.Series) -> pd.Series | float:
+    result1 = (1 + returns)
+    result2 = 1 / result1
+    result3 = result2.sum()
+    result4 = len(returns) / result3
+    return result4 - 1
 ```
 
 ```{python}
-tickets = ["JPM", "V", "GS", "PGR"]
+portfolio_returns = portfolio_prices.pct_change().dropna()
+portfolio_returns.head(3)
 ```
 
+Métricas individuales de rendimiento de los activos
 
 ```{python}
-portfolio = AssetsResearch(tickets)
+assets_annual_returns = portfolio_returns.mean() * 252
+assets_annual_returns
+```
+
+Métrica del rendimiento del portafolio
+
+```{python}
+portfolio_annual_return = np.sum(w * assets_annual_returns)
+portfolio_annual_return
+```
+
+medida **geometrica** del rendimiento.
+
+Por activo
+
+```{python}
+assets_anunual_geometric_return = geometric_mean(portfolio_returns) * 252
+assets_anunual_geometric_return
+```
+
+del portafolio
+
+```{python}
+portfolio_total_returns = np.sum(w * portfolio_returns, axis=1)
+portfolio_anunual_geometric_return = geometric_mean(portfolio_total_returns) * 252
+portfolio_anunual_geometric_return
+```
+
+medida **armonica** del rendimiento
+
+por activo
+
+```{python}
+assets_anunual_harmonic_return = harmonic_measure(portfolio_returns) * 252
+assets_anunual_harmonic_return
+```
+
+```{python}
+portfolio_anunual_harmonic_return = harmonic_measure(portfolio_total_returns) * 252
+portfolio_anunual_harmonic_return
+```
+
+### Riesgo
+
+Riesgo individual de los activos
+
+```{python}
+assets_annual_vol = portfolio_returns.std() * np.sqrt(252)
+assets_annual_vol
+```
+
+Riesgo del portafolio
+
+```{python}
+cov = portfolio_returns.cov()
+
+portfolio_annual_vol = np.sqrt((w.T @ cov @ w)) * np.sqrt(252)
+portfolio_annual_vol
+```
+
+### Métricas de rendimiento ajustadas al riesgo
+
+Coeficiente de variación de los activos individual
+
+```{python}
+cv = assets_annual_vol / assets_annual_returns
+cv
+```
+
+Coeficiente de variación del portafolio
+
+```{python}
+portfolio_cv = portfolio_annual_vol/portfolio_annual_return
+portfolio_cv
+```
+
+Ratio de Sharpe
+
+```{python}
+# Tasa libre de riesgo 1M
+free_risk_rate = 0.03
+
+sharpe_ratio = (portfolio_annual_return - free_risk_rate) / portfolio_annual_vol
+
+sharpe_ratio
+```
+
+
+### Matriz de correlación
+
+```{python}
+corr = portfolio_returns.corr()
+
+sns.heatmap(
+    corr,
+    cmap=sns.color_palette("Blues", as_cmap=True),
+    vmin=-1, vmax=1, center=0,
+    annot=True, fmt=".2f",
+    linewidths=0.6, linecolor="white",
+    square=True,
+    cbar_kws={"label": "Correlación", "shrink": 0.85},
+)
+
+plt.title("Matriz de correlación del portafolio")
+plt.tight_layout()
+plt.show()
+```
+
+Lo que podemos observar es que en general estos activos no tiene una correlación débil, casi todo lo contrario, dado que pertenecen a un mismo sector estos compartir el mismo riesgo inherente a su industria, por lo que en la medida de que los factores exógenos afecten a un activo afectará a los otros en la medida en la que estén relacionados. 
+
+Mientras más grande la correlación peor serán los efectos de la materialización de riesgo del sector para el portafolio.
+
+# Estrategia Pasiva
+
+Ahora bien, como ya lo hemos mencionado, todas y cada una de estas compañías se dedica a través de diferentes modelos de negocio a la finanzas.
+
+Por tanto, tras una investigación decidí utilizar el **Russell 1000 Financials 40 Act 15/22.5 Daily Capped Index** el cual es un índice sectorial de acciones financieras de EEUU que es donde se encuentra nuestro portafolio. Su rasgo distintivo es que incorpora un mecanismo de capping trimestral y monitoreo diario (“daily capped”) diseñado para limitar la concentración de emisoras y mantener pesos por debajo de umbrales regulatorios asociados al Investment Company Act of 1940.
+
+En este sentido, el ETF que se utilizará a manera de comparativa del rendimiento del portafolio es el iShares U.S. Financials (IYF) (NYSE Arca) que busca replicar este índice.
+
+A continuación se muestra una comparativa respecto de los pesos asignados por el indice y por el portafolio.
+
+![Benchmark weights](img/portfolio_weights_vs_benchmark_p0001.png)
+
+```{python}
+
+benchmark = "IYF"
+
+benchmark_prices = yf.download(
+    tickers=benchmark,
+    start=start_date,
+    end=end_date,
+    auto_adjust=True,
+    progress=False,
+)["Close"]
+
+benchmark_prices.head(3)
 
 ```
+
+```{python}
+bechmark_returns = benchmark_prices.pct_change().dropna()
+bechmark_returns.head(3)
+```
+
+
+## Métricas de riesgo y rendimiento del Benchmark
+
+### Riesgo
+
+```{python}
+benchmark_annual_vol = bechmark_returns.std() * np.sqrt(252)
+benchmark_annual_vol
+```
+
+### Rendimiento
+
+```{python}
+bechmark_returns = benchmark_prices.pct_change().dropna()
+
+benchmark_annual_return = bechmark_returns.mean() * 252
+benchmark_annual_return
+```
+
+### Metricas de rendimiento ajustadas al riesgo
+
+```{python}
+benchmark_sharpe_ratio = (benchmark_annual_return - free_risk_rate)/benchmark_annual_vol
+
+benchmark_sharpe_ratio
+```
+
+# Conclusiones
+
+Con base en las métricas obtenidas, personalmente invertiría en la estrategia activa, dada su relación riesgo rendimiento respecto de la estrategia pasiva. Aunque actualmente este cuenta con activos que no se han tenido el mejor performance, sigue manteniendo métricas más atractivas para un mejor pay-off.
+
+Naturalmente, esta estrategia podría ser mejorada si implementamos algún método de optimización como podría ser de mínima varianza, o incorporando una proporción del activo libre de riesgo en un sentido de la frontera eficiente, por mencionar algunas técnicas no tan sofisticadas.
