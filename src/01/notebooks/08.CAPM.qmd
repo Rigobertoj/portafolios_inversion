@@ -1,0 +1,104 @@
+---
+title: "Comparativa estrategia Pasiva vs Activa"
+subtitle: "Tarea 3"
+autor: "Rigoberto J. Martinez Madriz"
+date: "2025-02-16"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+---
+
+
+```{python}
+import pandas as pd
+import numpy as np
+
+import matplotlib.pyplot as plt
+import yfinance as yf
+```
+
+```{python}
+tickers = ["CHDRAUIB.MX", "GAPB.MX", "WALMEX.MX", "BIMBOA.MX", "^MXX"]
+
+prices_assets = yf.download(tickers, start = "2025-01-01", end="2026-01-01")["Close"]
+
+prices_assets
+```
+
+
+```{python}
+returns_assets = prices_assets.pct_change().dropna()
+returns_assets
+```
+
+Para ello se selecciona la tasa libre de riesgo que tenga el mismo horizonte de inversión que nuestros activos
+
+Historicamente el rendimiento promedio del mercado de bonos a 10 años en México es de 5.5%
+
+```{python}
+# Tasa libre de riesgo
+rf = 0.05
+
+# Rendimiento del mercado
+rm = returns_assets["^MXX"].mean()*252
+
+# Betas
+cov = returns_assets.cov()
+
+#B =
+B = cov["^MXX"]/cov.loc["^MXX", "^MXX"]
+
+# E[R]
+
+E = rf + B*(rm - rf)
+E
+```
+
+
+```{python}
+betas = np.arange(0,2, 0.01)
+betas
+```
+
+
+```{python}
+y_hat = rf + betas*(rm - rf)
+y_hat
+```
+
+```{python}
+assets_hist_returns = returns_assets.mean()*252
+assets_hist_returns
+```
+
+```{python}
+plt.figure(figsize=(12, 6))
+plt.plot(betas, y_hat, label = "CAPM")
+
+colors = ["red", "orange", "black", "green", "purple"]
+
+for i in range(len(E.index)):
+  plt.scatter(B.iloc[i], E.iloc[i], label=E.index[i], c=colors[i])
+
+for i in range(len(E.index)):
+  plt.scatter(B.iloc[i], assets_hist_returns.iloc[i], label=assets_hist_returns.index[i], c=colors[i], marker="x")
+
+
+plt.xlabel("Betas")
+plt.ylabel("E[R]")
+
+#plt.ylim(0.048, max(y_hat.max(), E.max()) * 1.01)
+
+
+plt.legend()
+plt.show()
+```
