@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Iterable, List, Optional, Sequence, Union
 
 import numpy as np
@@ -30,24 +30,105 @@ class AssetsResearch:
     - Statistics: describe_returns, covariance
     """
 
-    tickers: Iterable[str]
-    start: str
-    end: Optional[str] = None
-    price_field: str = "Close"
+    tickers: InitVar[Iterable[str]]
+    start: InitVar[str]
+    end: InitVar[Optional[str]] = None
+    price_field: InitVar[str] = "Close"
 
-    prices: pd.DataFrame = field(init=False, default_factory=pd.DataFrame)
-    returns: pd.DataFrame = field(init=False, default_factory=pd.DataFrame)
+    __tickers: List[str] = field(init=False, repr=False, default_factory=list)
+    __start: str = field(init=False, repr=False, default="")
+    __end: Optional[str] = field(init=False, repr=False, default=None)
+    __price_field: str = field(init=False, repr=False, default="Close")
+    __prices: pd.DataFrame = field(init=False, repr=False, default_factory=pd.DataFrame)
+    __returns: pd.DataFrame = field(
+        init=False, repr=False, default_factory=pd.DataFrame
+    )
 
-    def __post_init__(self) -> None:
-        """Normalize ticker input right after object creation."""
-        self.tickers = self._normalize_tickers(self.tickers)
+    def __post_init__(
+        self,
+        tickers: Iterable[str],
+        start: str,
+        end: Optional[str],
+        price_field: str,
+    ) -> None:
+        """Store validated inputs in private attributes."""
+        self.tickers = tickers
+        self.start = start
+        self.end = end
+        self.price_field = price_field
+
+    def _reset_cache(self) -> None:
+        """Reset derived cached data when source configuration changes."""
+        self.__prices = pd.DataFrame()
+        self.__returns = pd.DataFrame()
+
+    def _get_tickers(self) -> List[str]:
+        """Public read access to ticker symbols."""
+        return list(self.__tickers)
+
+    def _set_tickers(self, value: Iterable[str]) -> None:
+        normalized = self._normalize_tickers(value)
+        if not normalized:
+            raise ValueError("tickers must contain at least one symbol.")
+        self.__tickers = normalized
+        self._reset_cache()
+
+    def _get_start(self) -> str:
+        """Public read access to start date."""
+        return self.__start
+
+    def _set_start(self, value: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("start must be a non-empty date string.")
+        self.__start = value
+        self._reset_cache()
+
+    def _get_end(self) -> Optional[str]:
+        """Public read access to end date."""
+        return self.__end
+
+    def _set_end(self, value: Optional[str]) -> None:
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError("end must be None or a non-empty date string.")
+        self.__end = value
+        self._reset_cache()
+
+    def _get_price_field(self) -> str:
+        """Public read access to selected price field."""
+        return self.__price_field
+
+    def _set_price_field(self, value: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("price_field must be a non-empty string.")
+        self.__price_field = value
+        self._reset_cache()
+
+    def _get_prices(self) -> pd.DataFrame:
+        """Read-only style accessor for cached prices."""
+        return self.__prices.copy()
+
+    def _set_prices_cache(self, value: pd.DataFrame) -> None:
+        """Internal cache update for prices."""
+        if not isinstance(value, pd.DataFrame):
+            raise TypeError("prices cache must be a pandas DataFrame.")
+        self.__prices = value.copy()
+
+    def _get_returns(self) -> pd.DataFrame:
+        """Read-only style accessor for cached returns."""
+        return self.__returns.copy()
+
+    def _set_returns_cache(self, value: pd.DataFrame) -> None:
+        """Internal cache update for returns."""
+        if not isinstance(value, pd.DataFrame):
+            raise TypeError("returns cache must be a pandas DataFrame.")
+        self.__returns = value.copy()
 
     @staticmethod
     def _normalize_tickers(tickers: Iterable[str]) -> List[str]:
         """Normalize constructor tickers into a list."""
         if isinstance(tickers, str):
             return [tickers]
-        return [t for t in tickers]
+        return [str(t) for t in tickers]
 
     @staticmethod
     def _normalize_select(
@@ -99,7 +180,7 @@ class AssetsResearch:
                     f"price_field '{self.price_field}' not found in downloaded data."
                 )
 
-        self.prices = prices.dropna(how="all")
+        self._set_prices_cache(prices.dropna())
         return self.prices
 
     def compute_returns(self) -> pd.DataFrame:
@@ -114,7 +195,7 @@ class AssetsResearch:
         if self.prices.empty:
             self.download_prices()
 
-        self.returns = self.prices.pct_change().dropna()
+        self._set_returns_cache(self.prices.pct_change().dropna())
         return self.returns
 
     def get_prices(
@@ -298,6 +379,17 @@ class AssetsResearch:
         data = self.get_returns(tickers)
         return data.cov()
 
+
+# Bind properties after dataclass processing to keep constructor parameters
+# (`tickers`, `start`, `end`, `price_field`) and still encapsulate state.
+AssetsResearch.tickers = property(AssetsResearch._get_tickers, AssetsResearch._set_tickers)
+AssetsResearch.start = property(AssetsResearch._get_start, AssetsResearch._set_start)
+AssetsResearch.end = property(AssetsResearch._get_end, AssetsResearch._set_end)
+AssetsResearch.price_field = property(
+    AssetsResearch._get_price_field, AssetsResearch._set_price_field
+)
+AssetsResearch.prices = property(AssetsResearch._get_prices)
+AssetsResearch.returns = property(AssetsResearch._get_returns)
 
 # Optional alias with standard class naming
 if __name__ == "__main__":
