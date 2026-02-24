@@ -14,7 +14,6 @@ except ImportError:
 @dataclass
 class PortfolioElementaryMetrics(AssetsResearch):
     weight: InitVar[Iterable[float]] = field(kw_only=True)
-
     __weight: np.ndarray = field(init=False, repr=False)
 
     def __post_init__(
@@ -47,6 +46,11 @@ class PortfolioElementaryMetrics(AssetsResearch):
         if vector.ndim == 0:
             return vector.reshape(1)
         return vector
+    
+    def portfolio_path(self):
+        assets_prices = self.get_prices()
+        portfolio_wealth_path = assets_prices @ self.__weight 
+        return portfolio_wealth_path
 
     def portfolio_annual_return(self) -> float:
         assets_returns = self.annual_return().to_numpy(dtype=float)
@@ -68,7 +72,7 @@ class PortfolioElementaryMetrics(AssetsResearch):
     def portfolio_sharpe_ratio(self, free_rate : float) -> float:
         portfolio_return = self.portfolio_annual_return()
         portfolio_volatility = self.portfolio_annual_volatility()
-        if np.isclose(self.portfolio_annual_volatility, 0.0):
+        if np.isclose(portfolio_volatility, 0.0):
             raise ValueError("portfolio annual volatility is zero, coefficient is undefined")
         sharpe_ratio = (portfolio_return - free_rate)/portfolio_volatility        
         return float(sharpe_ratio)
@@ -94,10 +98,14 @@ def _main_():
         weight=weight
     )
     
-    print(Portfolio1.portfolio_annual_return())
-    print(Portfolio1.annual_return())
-    print(Portfolio1.portfolio_annual_volatility())
+    #print(Portfolio1.portfolio_annual_return())
+    #print(Portfolio1.annual_return())
+    #print(Portfolio1.portfolio_annual_volatility())
+    print(Portfolio1.portfolio_path())
+    print(Portfolio1.get_prices())
 
+    print(Portfolio1.correlation())
+    
     return
 
 
