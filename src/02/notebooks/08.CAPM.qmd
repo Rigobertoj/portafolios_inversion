@@ -5,6 +5,7 @@ autor: "Rigoberto J. Martinez Madriz"
 date: "2025-02-16"
 format:
   html:
+    html-math-method: katex
     toc: true
     toc-depth: 3
     toc-location: right
@@ -44,6 +45,45 @@ Para ello se selecciona la tasa libre de riesgo que tenga el mismo horizonte de 
 
 Historicamente el rendimiento promedio del mercado de bonos a 10 años en México es de 5.5%
 
+
+Separamos el rendimiento del benchmark y Calculamos la matriz de covarianza para todos los activos
+
+Sea el vector aleatorio de rendimientos de $n$ activos:
+$$
+\mathbf{R} =
+\begin{bmatrix}
+R_1 \\
+\vdots\\
+R_n
+\end{bmatrix},
+\qquad
+\mu = \mathbb{E}[\mathbf{R}].
+$$
+
+La matriz de covarianza $\Sigma \in \mathbb{R}^{n\times n}$ se define como:
+$$
+\Sigma
+=
+\operatorname{Cov}(\mathbf{R})
+=
+\mathbb{E}\left[
+(\mathbf{R} - \mu)(\mathbf{R} - \mu)^\top
+\right].
+$$
+
+En forma matricial:
+$$
+\Sigma
+=
+\begin{bmatrix}
+\sigma_1^2 & \sigma_{12} & \cdots & \sigma_{1n} \\
+\sigma_{21} & \sigma_2^2 & \cdots & \sigma_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+\sigma_{n1} & \sigma_{n2} & \cdots & \sigma_n^2
+\end{bmatrix}.
+$$
+
+
 ```{python}
 # Tasa libre de riesgo
 rf = 0.05
@@ -53,12 +93,15 @@ rm = returns_assets["^MXX"].mean()*252
 
 # Betas
 cov = returns_assets.cov()
+```
 
-#B =
+Con esto calculado ahora podemos calcular lo que se entiende por la beta de cada activo
+
+```{python}
+#Beta de los activos de forma individual
 B = cov["^MXX"]/cov.loc["^MXX", "^MXX"]
 
 # E[R]
-
 E = rf + B*(rm - rf)
 E
 ```
@@ -92,12 +135,10 @@ for i in range(len(E.index)):
 for i in range(len(E.index)):
   plt.scatter(B.iloc[i], assets_hist_returns.iloc[i], label=assets_hist_returns.index[i], c=colors[i], marker="x")
 
-
 plt.xlabel("Betas")
 plt.ylabel("E[R]")
 
 #plt.ylim(0.048, max(y_hat.max(), E.max()) * 1.01)
-
 
 plt.legend()
 plt.show()
