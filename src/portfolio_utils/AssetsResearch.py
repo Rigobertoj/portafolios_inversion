@@ -27,7 +27,7 @@ class AssetsResearch:
     - Data loading: download_prices, compute_returns, get_prices, get_returns
     - Metrics: annual_return, annual_volatility, skew, vol_over_mean
     - Intervals/reporting: return_interval_pct, metrics
-    - Statistics: describe_returns, covariance
+    - Statistics: describe_returns, covariance, correlation
     """
 
     tickers: InitVar[Iterable[str]]
@@ -378,6 +378,18 @@ class AssetsResearch:
         """
         data = self.get_returns(tickers)
         return data.cov()
+
+    def correlation(
+        self, tickers: Optional[Union[str, Sequence[str]]] = None
+    ) -> pd.DataFrame:
+        """
+        Compute correlation matrix of daily returns.
+
+        Returns:
+            pd.DataFrame: Correlation matrix.
+        """
+        data = self.get_returns(tickers)
+        return data.corr()
 
 
 # Bind properties after dataclass processing to keep constructor parameters
