@@ -1,4 +1,11 @@
 from .AssetsResearch import AssetsResearch
+from .PortfolioElementaryAnalysis import PortfolioElementaryAnalysis
+from .PortfolioElementaryMetrics import PortfolioElementaryMetrics
+from .PortfolioOptimization import (
+    OptimizationConfig,
+    OptimizationResult,
+    PortfolioOptimization,
+)
 from .PdfImageConverter import (
     PageExportTask,
     PdfImageConversionReport,
@@ -13,6 +20,11 @@ from .PdfImageConverter import (
 
 __all__ = [
     "AssetsResearch",
+    "PortfolioElementaryAnalysis",
+    "PortfolioElementaryMetrics",
+    "OptimizationConfig",
+    "OptimizationResult",
+    "PortfolioOptimization",
     "PageExportTask",
     "PdfImageConversionReport",
     "PdfToImageOptions",
