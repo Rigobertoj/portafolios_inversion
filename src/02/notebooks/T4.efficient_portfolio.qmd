@@ -1,0 +1,456 @@
+---
+title: "HW 4: Portfafolio eficiente"
+subtitle: "Tarea 4"
+autor: "Rigoberto J. Martinez Madriz"
+date: "2025-03-01"
+format:
+  html:
+    html-math-method: katex
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import yfinance as yf
+
+from scipy.optimize import minimize
+```
+
+## Assets qualitative research
+
+### Eli Lilly and Company (LLY)
+
+Lilly es una compañía fundada en 1876 en Indianapolis dedicada al desarrollo, manofactura y venta de medicamentos para la salud principalmente. Los productos de la firma consisten atienden diferentes tipos de diagnosticos tales como:
+
+- Diabetes
+- Inmunologicos
+- neurodegenerativos
+- etc.
+
+### NVIDIA Corp (NVDA)
+
+NVIDIA Corp. es una compañía dedicada al diseño y manofactura de procesadores graficos para computadoras, conjuntos de chips y algunos softwares. Opera a través de los siguientes segmentos: Unidad de procesamiento gráfico (GPU) y Computación y redes.
+
+### Microsoft Corp (MSFT)
+
+Microsoft Corp. se dedica al desarrollo y soporte de software, servicios, dispositivos y soluciones. Opera a través de los siguientes segmentos: Productividad y Procesos de Negocio, Nube Inteligente y Computación Personal. 
+
+### KXI - ETF (KXI)
+
+KXI sigue un índice ponderado por capitalización de mercado de empresas globales de bienes de consumo básico, extraído de 1200 acciones globales seleccionadas por S&P.
+
+## Assets quantitative research
+
+```{python}
+tickers = ["LLY", "NVDA", "MSFT", "KXI"]
+
+start_date = "2018-01-01"
+end_date = "2026-02-26"
+```
+
+```{python}
+prices = yf.download(tickers=tickers, start=start_date, end=end_date, progress=False)["Close"]
+prices.head(4)
+```
+
+### Returns and Vol
+
+Comenzaremos con el calculo del rendimiento promedio de los activos así como las metricas de riesgo individual y la matriz de covarianza para posteriormente poder calcular las medidas de riesgo en conjunto como un portafolio
+
+Calculo del rendimiento aritmetico de los precios de forma diaria
+
+
+$$
+R_i = \frac{S_t}{S_{t-1}} - 1
+$$
+
+```{python}
+returns = prices.pct_change().dropna()
+returns.head(3)
+```
+
+Rendimiento promedio diario de los activos de forma individual
+
+$$
+\hat{\mu} = \frac{1}{n} \sum_{i = 1}^n R_i
+$$
+
+```{python}
+assets_mean_return = returns.mean()
+assets_mean_return
+```
+
+Rendimiento anualizado porcentual
+
+
+$$
+\hat{\mu}_{anual-port} = \hat{\mu} \times 100 \times 252
+$$
+
+```{python}
+assets_mean_return * 100 * 252
+```
+
+Calculo de la volatilidad invidual de cada activo de forma diaria
+
+$$
+\hat{\sigma} = \sqrt{ \frac{1}{n} \sum_{i=1}^n(R_i - \hat{\mu})^2}
+$$
+
+```{python}
+assets_vol_return = returns.std()
+assets_vol_return
+```
+
+Escalamos las unidades para poder apreciarlas en un ventana temporal anual y porcentual
+
+$$
+\hat{\sigma}_{anual-port} = \hat{\sigma} \times 100 \times \sqrt{252}
+$$
+
+```{python}
+assets_vol_return * 100 * np.sqrt(252)
+```
+
+Por ultimo calculamos la matriz de covarianza de los activos
+
+$$
+\hat{\sigma}_{i,j} = \operatorname{Cov}(R_i,R_j) = \frac{1}{n} \sum_{k=1}^n (R_{ik} - \hat{\mu}_i)(R_{jk} - \hat{\mu}_j) 
+$$
+
+La cual queda representada por
+
+$$
+\Sigma \;=\;
+\begin{pmatrix}
+\sigma_{11} & \sigma_{12} & \cdots & \sigma_{1n}\\
+\sigma_{21} & \sigma_{22} & \cdots & \sigma_{2n}\\
+\vdots      & \vdots      & \ddots & \vdots\\
+\sigma_{n1} & \sigma_{n2} & \cdots & \sigma_{nn}
+\end{pmatrix},
+$$
+
+```{python}
+assets_cov = returns.cov()
+assets_cov
+```
+
+### Efficient portfolio: min volatility
+
+Con la matriz de covarianza podemos optimizar los pesos $w$ de un portafolio con el objetivo de obtener un portafolio de minima varianza. Para ello se plantea un problema de optimización.
+
+$$
+min \space \sigma^2 = \text{w}^T \Sigma \text{w}
+$$
+
+s.a.
+
+
+$$
+\sum_{i=1}^n w_i = 1; \space \space w_i > 0
+$$
+
+```{python}
+n_assets = len(returns.columns)
+
+# Definimos la funcion objetivo
+def variance(w: pd.Series) -> float:
+    return w.T @ assets_cov @ w
+
+# Restricciones
+def sum_weight(w: pd.Series) -> 0:
+    return sum(w) - 1
+
+def min_return(w: pd.Series):
+    return sum(w @ (assets_mean_return * 100 * 252)) - 12
+
+# condiciones iniciales
+initial_weight = np.ones(n_assets) / n_assets
+
+# Bounds
+bounds = [(0, 1)] * n_assets
+
+#tol
+tol = 1e-50
+
+result = minimize(
+    fun=variance, 
+    x0=initial_weight,
+    bounds=bounds,
+    constraints={"fun" : sum_weight, "type" : "eq"},
+    tol = tol)
+
+portfolio_weight_min_var = result.x
+result
+```
+
+```{python}
+dict(zip(returns.columns, result.x))
+```
+
+Con los pesos calculados, ahora podemos determinar las medidas de riesgo y rendimiento del portafolio.
+
+Primero calcularemos la medida de rendimiento la cual esta dada por:
+
+$$
+\hat{\mu}_{\Pi} = \mathbf{\text{w}} \cdot \mathbf{\hat{\mu}}
+$$
+
+```{python}
+portfolio_min_var_mean_return = portfolio_weight_min_var @ assets_mean_return
+portfolio_min_var_mean_return
+```
+
+Escalamos la medida a su forma anual y porcentual
+
+```{python}
+portfolio_min_var_mean_return * 100 * 252
+```
+
+Finalizamos con la medida de riesgo del portafolio medida como la volatilidad dada por
+
+$$
+\hat{\sigma}_{\Pi} = \sqrt{\mathbf{\text{w}}^T \cdot \Sigma \cdot \mathbf{\text{w}}}
+$$
+
+```{python}
+portfolio_min_var_vol_return = np.sqrt(portfolio_weight_min_var.T @ assets_cov @ portfolio_weight_min_var)
+portfolio_min_var_vol_return
+```
+
+De la misma forma escalamos esta medida a una escala y porcentual
+
+```{python}
+portfolio_min_var_vol_return * 100 * np.sqrt(252)
+```
+
+### Efficient portfolio: max sharpe
+
+Continuamos con el portafolio de max sharpe. Pare ello planteamos el problema de optimización
+
+$$
+min \space -sharpe = - \frac{\hat{\mu}_{\Pi} - r_f}{\hat{\sigma}_{\Pi}}
+$$
+
+s.a.
+
+$$
+\sum_{i = 1} ^n w_i = 1; \space \space w_i > 0
+$$
+
+se toma el inverso aditivo del sharpe dado que el metodo de optimización solo admite funciones convexas y por tanto es necesario ajustar el problema a uno de minimizacion.
+
+Partimos de plantear el problema de optimizacion y definir nuestra tasa libre de riesgo.
+
+```{python}
+# inputs 3.78 
+rf = 0.03 / 252
+
+# funcion objetivo
+def max_sharpe(w:pd.Series) -> float:
+    mean_return = w @ assets_mean_return
+    vol_return = np.sqrt(w.T @ assets_cov @ w)
+    return (-1)*((mean_return - rf) / vol_return)
+
+# restricciones
+def sum_weight(w : pd.Series):
+    return sum(w) - 1
+
+# condiciones iniciales
+initial_weight = np.ones(n_assets) / n_assets
+
+#Bounds
+bounds = [(0,1)] * n_assets
+
+#tol
+tol = 1e-50
+
+result_max = minimize(
+    fun=max_sharpe,
+    x0=initial_weight,
+    constraints={"fun": sum_weight, "type": "eq"},
+    bounds=bounds,
+    tol = tol
+)
+
+portfolio_weight_max_sharpe = result_max.x
+result_max
+```
+
+```{python}
+dict(zip(returns.columns, portfolio_weight_max_sharpe))
+```
+
+continuamos calculando las medidas de riesgo y rendimiento del portafolio con los pesos del max_sharpe
+
+Calculamos la medida de rendimiento segun la definición dada previamente.
+
+```{python}
+portfolio_max_sharpe_mean_return = portfolio_weight_max_sharpe @ assets_mean_return
+portfolio_max_sharpe_mean_return
+```
+
+Escalamos la ventana de tiempo a una anual y en porcentaje
+
+```{python}
+portfolio_max_sharpe_mean_return * 100 * 252
+```
+
+Finalmente calculamos la medida de riesgo del portafolio dada la definición previa.
+
+```{python}
+portfolio_max_sharpe_vol_return = np.sqrt(portfolio_weight_max_sharpe.T @ assets_cov @ portfolio_weight_max_sharpe)
+portfolio_max_sharpe_vol_return
+```
+
+También escalamos
+
+```{python}
+portfolio_max_sharpe_vol_return * 100 * np.sqrt(252)
+```
+
+### Portfolio same weight
+
+Ahora calcularemos las medidas de riesgo y rendimiento para un portafolio igualmente ponderado
+
+Empezamos por el rendimiento
+
+```{python}
+portfolio_weight_same_weight = np.ones(n_assets) / n_assets
+
+portfolio_same_weight_mean_return = portfolio_weight_same_weight @ assets_mean_return
+portfolio_same_weight_mean_return
+```
+
+Escalamos
+
+```{python}
+portfolio_same_weight_mean_return * 100 * 252
+```
+
+Medida de riesgo del portafolio siguiendo definición
+
+```{python}
+portfolio_same_weight_vol_return = np.sqrt(portfolio_weight_same_weight.T @ assets_cov @ portfolio_weight_same_weight)
+portfolio_same_weight_vol_return
+```
+
+escalamos
+
+```{python}
+portfolio_same_weight_vol_return * 100 * np.sqrt(252)
+```
+
+### Efficient frontier
+
+Graficamos la frontera eficiente con los portafolios
+
+```{python}
+n_portfolios = 100_000
+w_random = np.random.dirichlet(np.ones(n_assets), size=n_portfolios)
+
+return_random, vol_random = np.array(
+    [
+        (
+            w @ assets_mean_return, 
+            np.sqrt(w.T @ assets_cov @ w)
+        ) 
+        for w in w_random
+    ]
+).T
+
+return_random, vol_random
+```
+
+```{python}
+# Realizar grafica
+plt.figure(figsize=(12, 6))
+
+# Scatter plot de portafolios aleatorios
+plt.scatter(vol_random, return_random, c = return_random, cmap="Blues")
+
+# Scatter plot de Minima Varianza
+plt.scatter(portfolio_min_var_vol_return, portfolio_min_var_mean_return, c = "red", marker="x")
+plt.text(portfolio_min_var_vol_return, portfolio_min_var_mean_return, "Min Varianza")
+
+# Scatter plot de Maximo de Sharpe
+plt.scatter(portfolio_max_sharpe_vol_return, portfolio_max_sharpe_mean_return, c = "red", marker="x")
+plt.text(portfolio_max_sharpe_vol_return, portfolio_max_sharpe_mean_return, "Max sharpe")
+
+# Scatter plot de mismo pesos
+plt.scatter(portfolio_same_weight_vol_return, portfolio_same_weight_mean_return, c = "red", marker="x")
+plt.text(portfolio_same_weight_vol_return, portfolio_same_weight_mean_return, "Same weight")
+
+# Nombrar eje x, y, titulo
+plt.xlabel("Volatilidad")
+plt.ylabel("Rendimiento")
+plt.title("Markowitz Bullet and Efficient Frontier")
+# Graficar coordenadas de activos individuales
+mean_ind, vol_ind = returns.mean(), returns.std()
+
+for i in range(len(returns.columns)):
+    plt.scatter(vol_ind.iloc[i], mean_ind.iloc[i], c = "red", marker = "x")
+    plt.text(vol_ind.iloc[i], mean_ind.iloc[i], returns.columns[i])
+```
+
+### Conclution
+
+```{python}
+portfolios_metrics = pd.DataFrame({
+    "mean" : [portfolio_min_var_mean_return, portfolio_max_sharpe_mean_return, portfolio_same_weight_mean_return],
+    "vol" : [portfolio_min_var_vol_return, portfolio_max_sharpe_vol_return, portfolio_same_weight_vol_return]
+},index=["min_var", "max_sharpe", "same_weight"])
+
+portfolios_metrics["mean_annual"] = portfolios_metrics["mean"] * 252
+portfolios_metrics["vol_annual"] = portfolios_metrics["vol"] * np.sqrt(252)
+portfolios_metrics["cv"] = portfolios_metrics["vol_annual"] / portfolios_metrics["mean_annual"]
+portfolios_metrics["sharpe"] = (portfolios_metrics["mean_annual"] - (rf / 252)) / portfolios_metrics["vol_annual"]
+
+portfolios_metrics
+```
+
+- ¿Cuál de estos portafolios es superior en términos de riesgo? Naturalmente si solo consideramos el riesgo el portafolio de minima varianza es el que ofrece la mejor metrica.
+
+- ¿Cuál de estos portafolios es superior en términos de riesgo y retorno? En este sentido cuando incorporamos ambas metricas en un analisis el mejor portafolio es el de max sharpe, dado que si utilizamos el coeficiente de variacion para poder determinar la relacion entre riesgo y rendimiento de los portafolios podemos ver que quien ofrece mas unidades de rendimiento por unidad de riesgo es el de max sharpe, pues este en terminos anuales ofrece una unidad de rendimiento por cada 0.67 de riesgo que se toma.
+
+- Interpreta la frontera eficiente con base en la teoría vista en clase y responde: ¿Qué pasa con el portafolio *equally weighted*?¿Es óptimo?¿Por qué? No, este no es optimo dado que no se encuentra en el frente de pareto o la frontera eficiente. Por tanto este portafolios nos estaría ofreciendo menos rendimiento del que podríamos obtener con una combinación optima asumiendo el mismo riesgo en la frontera eficiente.
+
+- ¿Por qué un portafolio podría ser mejor que otro? ¿De qué depende que sea "mejor"? Si pensamos que somos inversionistas racionales, el mejor portafolio sera aquel que nos entrege un mejor rendimiento ajustado al riesgo, es decir, no solo queremos poco riesgo, sino también queremos que ese riesgo que tomamos pague un payoff de tal manera que valga la pena tomarlo. Sin embargo, dada la naturaleza de los procesos sociales, no todo depende de esta metrica, sino también de la adversión y toleracia al riesgo, por lo que también el mejor portafolio se puede ver como aquel que se ajusta mejor a nuestro cliente (metematicamente se podría describir como el portafolio que maximice la función de utilidad del individuo).
+
+- Analiza las ponderaciones obtenidas por el método de mínima varianza y el de máximo de Sharpe para cada activo de manera individual, basándote en la descripción presentada en la primera sección de la tarea. ¿Qué factores explican que cada activo tenga una mayor o menor ponderación en uno de los métodos en comparación con el otro? 
+
+```{python}
+w_min = dict(zip(returns.columns, result.x))
+w_max = dict(zip(returns.columns, portfolio_weight_max_sharpe))
+
+pd.DataFrame({
+    "min_var" : w_min,
+    "max_sharpe" : w_max
+}).style.format("{:.6f}")
+```
+
+Lo que podemos apreciar es que los estadisticos que calculamos para cada activo influyen a la hora de determinar sus pesos para cada portafolio. 
+
+En el caso del portafolio de minima varianza el activo con la mayor ponderación fue KXI el cual es el activo con la menor varianza de los 4, sin embargo también LLY ofrece una buena relación de rendimiento frente al riesgo, razón por la que a este se le asigno una parte del portafolio.
+
+Por otro lado, en el portafolio de maximo de sharpe el activo que tiene la ponderación más grande es LLY este dado que como ya los habiamos mencionado cuenta con una excelente relación riesgo rendimiento. Asi mismo, se encuentra NVDA quien en el portafolio seguramente por su gran rendimiento se encuentre aportando buena parte del rendimiento esperado con la ponderación dada.
+
+Por ultimo, si vemos MSFT en ninguno de los portafolios recibio una ponderación, seguramente esto es devido a una mala relación del riesgo y rendimiento, además que claramente se encuentra en un punto de la bullet de markowitz donde si el peso del portafolio fuera asignado totalmente a este activo ofreceria la peor relación de rendimiento para el nivel de riesgo dado.
+
+- Concluye acerca de las ventajas y desventajas de una estrategia cuantitativa de asignación de activos frente a una basada en "feeling" o intuición.
+
+Si solo hablamos de asset allocation entonces claramente existe una ventaja a la hora de establecer un proceso cuantitativo, ya que este otorga una estructura clara de la forma y metodologia de asignación de capital, que otorga diciplina, claridad y capacidad de auditoria en la toma de decisiones. Por otro lado, cuando uno asigna capital meramente por la intuición del inversionista, sus procesos estan más sujeto a factores externos y percepción del inversor, lo que puede ocasionar fallas o errores en la asignación lo que claramente puede influir en los costos de oportunidad de la compañía.
