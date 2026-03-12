@@ -244,8 +244,10 @@ def _main_():
         benchmark=benchmark
     )
     
-    cfg = OptimizationConfig()
+    opt
     
+    cfg = OptimizationConfig()
+    cfg
     return
 
 

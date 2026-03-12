@@ -201,8 +201,8 @@ def _main_() -> None:
         benchmark=benchmark
     )
     
-    portfolio_beta = Portfolio1.portfolio_beta()
-    assets_beta = Portfolio1.assets_beta()
+    #portfolio_beta = Portfolio1.portfolio_beta()
+    #assets_beta = Portfolio1.assets_beta()
     
     #print("portfolio beta: ",portfolio_beta)
     #print("assets beta: ", assets_beta)

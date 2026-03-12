@@ -422,8 +422,8 @@ __all__ = [
 
 
 def __main():
-    path = "../../docs/01/"
-    name = "portfolio_weights_vs_benchmark"
+    #path = "../../docs/01/"
+    #name = "portfolio_weights_vs_benchmark"
     
     file = "./portfolio_weights_vs_benchmark"
     
@@ -435,7 +435,7 @@ def __main():
     #    overwrite=True)
     
     png_report = pdf_to_png(f"{file}.pdf", f"{file}.png")
-    
+    png_report
     return
 
 if __name__ == "__main__":

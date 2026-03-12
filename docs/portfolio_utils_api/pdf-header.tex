@@ -1,0 +1,29 @@
+\usepackage{xcolor}
+\usepackage{eso-pic}
+\usepackage{etoolbox}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+\definecolor{SlideBlue}{HTML}{0F2F69}
+\definecolor{SlideInk}{HTML}{173D7A}
+\definecolor{SlideBg}{HTML}{ECEEF1}
+\definecolor{SlideLink}{HTML}{0C3C84}
+
+\AtBeginDocument{
+  \pagecolor{SlideBg}
+  \color{SlideInk}
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=SlideLink,
+    citecolor=SlideLink,
+    urlcolor=SlideLink
+  }
+}
+
+\AddToShipoutPictureBG*{
+  \AtPageLowerLeft{
+    \hspace*{0.74\paperwidth}
+    \color{SlideBlue}
+    \rule{0.26\paperwidth}{\paperheight}
+  }
+}

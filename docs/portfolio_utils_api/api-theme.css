@@ -1,0 +1,141 @@
+:root {
+  --slide-bg: #eceef1;
+  --slide-ink: #173d7a;
+  --slide-ink-soft: #234a86;
+  --slide-accent: #0f2f69;
+  --panel: #ffffff;
+  --panel-border: #d5dce7;
+  --code-bg: #0f1f3f;
+  --code-ink: #eef3ff;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--slide-bg);
+  color: var(--slide-ink-soft);
+  font-family: "Poppins", "Montserrat", "Segoe UI", "Noto Sans", sans-serif;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(24vw, 360px);
+  height: 100vh;
+  background: var(--slide-accent);
+  z-index: -1;
+}
+
+main.content,
+.quarto-container {
+  max-width: min(980px, calc(100vw - min(28vw, 410px)));
+  margin: 24px 0 48px 30px;
+  padding: 28px 32px 32px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(16, 42, 88, 0.14);
+  backdrop-filter: blur(2px);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--slide-ink);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+h1.title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  text-transform: uppercase;
+  line-height: 1.02;
+  margin-top: 0.1rem;
+  margin-bottom: 0.8rem;
+}
+
+h2 {
+  margin-top: 1.7rem;
+  border-bottom: 2px solid #c6d2e7;
+  padding-bottom: 0.2rem;
+}
+
+p,
+li {
+  font-size: 1.03rem;
+  line-height: 1.56;
+}
+
+a {
+  color: #103b7d;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.14em;
+}
+
+code {
+  color: #0d2a57;
+  background: #dde8fa;
+  padding: 0.08em 0.34em;
+  border-radius: 5px;
+}
+
+pre {
+  background: linear-gradient(170deg, #10264f 0%, #0f1f3f 100%);
+  color: var(--code-ink);
+  border: 1px solid #2a4375;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+pre code {
+  background: transparent;
+  color: inherit;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+table th,
+table td {
+  border: 1px solid #c8d3e8;
+  padding: 0.52rem 0.56rem;
+}
+
+table th {
+  color: #103a79;
+  background: #e4ecf9;
+}
+
+blockquote {
+  margin-left: 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 4px solid #2d5aa0;
+  background: rgba(45, 90, 160, 0.08);
+}
+
+@media (max-width: 980px) {
+  body::after {
+    width: 20vw;
+  }
+
+  main.content,
+  .quarto-container {
+    margin: 16px 12px 24px;
+    max-width: calc(100vw - 24px);
+    padding: 20px 16px 20px;
+  }
+
+  h1.title {
+    font-size: clamp(1.8rem, 7vw, 2.4rem);
+  }
+}
+
