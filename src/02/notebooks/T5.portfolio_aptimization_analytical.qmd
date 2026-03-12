@@ -1,0 +1,1219 @@
+---
+title: "Frontera eficiente"
+subtitle: "Tarea 5"
+author: "Rigoberto J. Martinez Madriz"
+date: "2025-03-09"
+format:
+  html:
+    html-math-method: mathml
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+---
+
+# Planteamiento del problema
+
+El problema de optimización de la frontera eficiente en media-varianza consiste en encontrar el vector de pesos del portafolio que minimiza la varianza del portafolio sujeto a dos restricciones: que la suma de los pesos sea igual a uno y que el rendimiento esperado del portafolio sea igual a un rendimiento objetivo dado.
+
+En notación matricial, el problema se plantea como:
+
+$$
+\min_{w}\; \sigma_p^2 = w^\top \Sigma w
+$$
+
+sujeto a
+
+$$
+w^\top \mathbf{1} = 1
+$$
+
+$$
+w^\top \mu = \mu_p
+$$
+
+donde:
+
+-   $w \in \mathbb{R}^{n \times 1}$ es el vector de pesos del portafolio,
+-   $\Sigma \in \mathbb{R}^{n \times n}$ es la matriz de varianza-covarianza,
+-   $\mathbf{1} \in \mathbb{R}^{n \times 1}$ es el vector columna de unos,
+-   $\mu \in \mathbb{R}^{n \times 1}$ es el vector de rendimientos esperados de los activos,
+-   $\mu_p$ es el rendimiento objetivo del portafolio.
+
+# Construcción del lagrangiano
+
+Para incorporar las dos restricciones de igualdad al problema de optimización, se construye el lagrangiano:
+
+$$
+\mathcal{L}(w,\lambda_1,\lambda_2)
+=
+ w^\top \Sigma w
++ \lambda_1 \left(w^\top \mathbf{1} - 1\right)
++ \lambda_2 \left(w^\top \mu - \mu_p\right)
+$$
+
+Aquí, $\lambda_1$ y $\lambda_2$ son los multiplicadores de Lagrange asociados a las restricciones.
+
+# Condiciones de primer orden
+
+Para encontrar el óptimo, derivamos el lagrangiano respecto a las variables de decisión y respecto a los multiplicadores de Lagrange, e igualamos a cero.
+
+## Derivada respecto a $w$
+
+La derivada del término cuadrático $w^\top \Sigma w$ respecto a $w$ es:
+
+$$
+\frac{\partial}{\partial w}\left(w^\top \Sigma w\right)=2\Sigma w
+$$
+
+porque $\Sigma$ es simétrica.
+
+Por tanto,
+
+$$
+\frac{\partial \mathcal{L}}{\partial w}
+=
+2\Sigma w + \lambda_1 \mathbf{1} + \lambda_2 \mu
+$$
+
+Igualando a cero:
+
+$$
+2\Sigma w + \lambda_1 \mathbf{1} + \lambda_2 \mu = 0
+$$
+
+Despejamos $w$:
+
+$$
+2\Sigma w = -\lambda_1 \mathbf{1} - \lambda_2 \mu
+$$
+
+$$
+\Sigma w = -\frac{1}{2}\lambda_1 \mathbf{1} - \frac{1}{2}\lambda_2 \mu
+$$
+
+Multiplicando por $\Sigma^{-1}$ en ambos lados:
+
+$$
+w = -\frac{1}{2}\Sigma^{-1}\left(\lambda_1 \mathbf{1} + \lambda_2 \mu\right)
+$$
+
+Esta expresión será sustituida en las restricciones.
+
+## Derivada respecto a $\lambda_1$
+
+$$
+\frac{\partial \mathcal{L}}{\partial \lambda_1} = w^\top \mathbf{1} - 1 = 0
+$$
+
+Por tanto,
+
+$$
+w^\top \mathbf{1} = 1
+$$
+
+## Derivada respecto a $\lambda_2$
+
+$$
+\frac{\partial \mathcal{L}}{\partial \lambda_2} = w^\top \mu - \mu_p = 0
+$$
+
+Por tanto,
+
+$$
+w^\top \mu = \mu_p
+$$
+
+# Sustitución de $w$ en las restricciones
+
+Partimos de la expresión ya obtenida:
+
+$$
+w = -\frac{1}{2}\Sigma^{-1}\left(\lambda_1 \mathbf{1} + \lambda_2 \mu\right)
+$$
+
+## Primera restricción
+
+Sustituyendo en $w^\top \mathbf{1}=1$:
+
+$$
+\left(-\frac{1}{2}\Sigma^{-1}(\lambda_1 \mathbf{1}+\lambda_2\mu)\right)^\top \mathbf{1}=1
+$$
+
+Usando que $\Sigma^{-1}$ es simétrica:
+
+$$
+-\frac{1}{2}(\lambda_1 \mathbf{1}+\lambda_2\mu)^\top \Sigma^{-1}\mathbf{1}=1
+$$
+
+Distribuyendo:
+
+$$
+-\frac{1}{2}\lambda_1 \mathbf{1}^\top \Sigma^{-1}\mathbf{1}
+-\frac{1}{2}\lambda_2 \mu^\top \Sigma^{-1}\mathbf{1}=1
+$$
+
+## Segunda restricción
+
+Sustituyendo en $w^\top \mu=\mu_p$:
+
+$$
+\left(-\frac{1}{2}\Sigma^{-1}(\lambda_1 \mathbf{1}+\lambda_2\mu)\right)^\top \mu=\mu_p
+$$
+
+Nuevamente, usando la simetría de $\Sigma^{-1}$:
+
+$$
+-\frac{1}{2}(\lambda_1 \mathbf{1}+\lambda_2\mu)^\top \Sigma^{-1}\mu=\mu_p
+$$
+
+Distribuyendo:
+
+$$
+-\frac{1}{2}\lambda_1 \mathbf{1}^\top \Sigma^{-1}\mu
+-\frac{1}{2}\lambda_2 \mu^\top \Sigma^{-1}\mu=\mu_p
+$$
+
+# Definición de constantes auxiliares
+
+Para simplificar la notación, definimos:
+
+$$
+a = \mathbf{1}^\top \Sigma^{-1}\mathbf{1}
+$$
+
+$$
+b = \mathbf{1}^\top \Sigma^{-1}\mu
+$$
+
+$$
+c = \mu^\top \Sigma^{-1}\mu
+$$
+
+Además, por la simetría de $\Sigma^{-1}$, se cumple que:
+
+$$
+\mathbf{1}^\top \Sigma^{-1}\mu = \mu^\top \Sigma^{-1}\mathbf{1}=b
+$$
+
+Sustituyendo estas definiciones en las restricciones, obtenemos el sistema:
+
+$$
+-\frac{1}{2}\lambda_1 a - \frac{1}{2}\lambda_2 b = 1
+$$
+
+$$
+-\frac{1}{2}\lambda_1 b - \frac{1}{2}\lambda_2 c = \mu_p
+$$
+
+Multiplicando ambas ecuaciones por $-2$:
+
+$$
+\lambda_1 a + \lambda_2 b = -2
+$$
+
+$$
+\lambda_1 b + \lambda_2 c = -2\mu_p
+$$
+
+# Resolución del sistema de ecuaciones
+
+Dado que tenemos dos incógnitas, $\lambda_1$ y $\lambda_2$, y dos ecuaciones lineales, resolvemos el sistema por sustitución, siguiendo la lógica de las notas.
+
+## Despeje de $\lambda_1$
+
+De la primera ecuación:
+
+$$
+\lambda_1 a + \lambda_2 b = -2
+$$
+
+Despejando $\lambda_1$:
+
+$$
+\lambda_1 a = -2 - \lambda_2 b
+$$
+
+$$
+\lambda_1 = \frac{-2-\lambda_2 b}{a}
+$$
+
+## Sustitución en la segunda ecuación
+
+Partimos de:
+
+$$
+\lambda_1 b + \lambda_2 c = -2\mu_p
+$$
+
+Sustituyendo $\lambda_1$:
+
+$$
+\left(\frac{-2-\lambda_2 b}{a}\right)b + \lambda_2 c = -2\mu_p
+$$
+
+Distribuyendo $b$:
+
+$$
+\frac{-2b-\lambda_2 b^2}{a} + \lambda_2 c = -2\mu_p
+$$
+
+Multiplicamos toda la ecuación por $a$:
+
+$$
+-2b - \lambda_2 b^2 + a\lambda_2 c = -2a\mu_p
+$$
+
+Agrupamos los términos con $\lambda_2$:
+
+$$
+\lambda_2(ac-b^2) = -2a\mu_p + 2b
+$$
+
+Por tanto,
+
+$$
+\lambda_2 = \frac{2b - 2a\mu_p}{ac-b^2}
+$$
+
+Equivalentemente,
+
+$$
+\lambda_2 = \frac{2(b-a\mu_p)}{ac-b^2}
+$$
+
+## Sustitución para obtener $\lambda_1$
+
+Ahora sustituimos esta expresión en:
+
+$$
+\lambda_1 = \frac{-2-\lambda_2 b}{a}
+$$
+
+Entonces,
+
+$$
+\lambda_1 = \frac{-2 - b\left(\frac{2(b-a\mu_p)}{ac-b^2}\right)}{a}
+$$
+
+Llevamos todo al mismo denominador:
+
+$$
+\lambda_1
+= \frac{1}{a}
+\left[
+\frac{-2(ac-b^2)-2b(b-a\mu_p)}{ac-b^2}
+\right]
+$$
+
+Desarrollando el numerador:
+
+$$
+-2(ac-b^2)-2b(b-a\mu_p)
+= -2ac + 2b^2 - 2b^2 + 2ab\mu_p
+$$
+
+$$
+= -2ac + 2ab\mu_p
+$$
+
+Factorizando $2a$:
+
+$$
+= 2a(b\mu_p-c)
+$$
+
+Entonces,
+
+$$
+\lambda_1
+= \frac{1}{a}
+\left[
+\frac{2a(b\mu_p-c)}{ac-b^2}
+\right]
+$$
+
+Finalmente,
+
+$$
+\lambda_1 = \frac{2(b\mu_p-c)}{ac-b^2}
+$$
+
+# Sustitución final en la expresión de $w$
+
+Recordemos que:
+
+$$
+w = -\frac{1}{2}\Sigma^{-1}(\lambda_1\mathbf{1}+\lambda_2\mu)
+$$
+
+Sustituyendo $\lambda_1$ y $\lambda_2$:
+
+$$
+w = -\frac{1}{2}\Sigma^{-1}
+\left(
+\frac{2(b\mu_p-c)}{ac-b^2}\mathbf{1}
++
+\frac{2(b-a\mu_p)}{ac-b^2}\mu
+\right)
+$$
+
+Factorizamos $\frac{2}{ac-b^2}$:
+
+$$
+w = -\frac{1}{2}\Sigma^{-1}
+\left[
+\frac{2}{ac-b^2}
+\left((b\mu_p-c)\mathbf{1} + (b-a\mu_p)\mu\right)
+\right]
+$$
+
+Simplificando el factor $-\frac{1}{2}\cdot 2$:
+
+$$
+w = -\Sigma^{-1}
+\left[
+\frac{(b\mu_p-c)\mathbf{1} + (b-a\mu_p)\mu}{ac-b^2}
+\right]
+$$
+
+Distribuyendo el signo negativo dentro del numerador:
+
+$$
+w = \Sigma^{-1}
+\left[
+\frac{(c-b\mu_p)\mathbf{1} + (a\mu_p-b)\mu}{ac-b^2}
+\right]
+$$
+
+Por tanto, la solución analítica de los pesos eficientes es:
+
+$$
+\boxed{
+w^* = \Sigma^{-1}
+\left[
+\frac{(c-b\mu_p)\mathbf{1} + (a\mu_p-b)\mu}{ac-b^2}
+\right]
+}
+$$
+
+# Reescritura en forma matricial compacta
+
+La expresión anterior puede escribirse de forma matricial compacta, que es justamente la forma pedida en la consigna.
+
+Definimos la matriz de restricciones y el vector objetivo como:
+
+$$
+R_{n\times 2} = [\mu \;\; \mathbf{1}]
+$$
+
+$$
+P_{2\times 1} =
+\begin{bmatrix}
+\mu_p \\
+1
+\end{bmatrix}
+$$
+
+Observamos que:
+
+$$
+R^\top w =
+\begin{bmatrix}
+\mu^\top w \\
+\mathbf{1}^\top w
+\end{bmatrix}
+=
+\begin{bmatrix}
+\mu_p \\
+1
+\end{bmatrix}
+= P
+$$
+
+Por otra parte,
+
+$$
+R^\top \Sigma^{-1} R
+=
+\begin{bmatrix}
+\mu^\top \Sigma^{-1}\mu & \mu^\top \Sigma^{-1}\mathbf{1} \\
+\mathbf{1}^\top \Sigma^{-1}\mu & \mathbf{1}^\top \Sigma^{-1}\mathbf{1}
+\end{bmatrix}
+=
+\begin{bmatrix}
+c & b \\
+b & a
+\end{bmatrix}
+$$
+
+De esta manera, la solución puede escribirse de forma compacta como:
+
+$$
+\boxed{
+w^*_{\text{frontier}} = \Sigma^{-1} R \left(R^\top \Sigma^{-1} R\right)^{-1} P
+}
+$$
+
+Esta es la expresión analítica de la frontera eficiente en media-varianza.
+
+# Verificación conceptual de la solución
+
+La expresión obtenida tiene sentido económico y matemático por tres razones.
+
+Primero, depende de $\mu_p$, lo cual es indispensable, porque cada rendimiento objetivo genera un portafolio eficiente distinto sobre la frontera.
+
+Segundo, la solución depende de $\Sigma^{-1}$, lo cual es coherente con el hecho de que la optimización incorpora toda la estructura de riesgo y covarianza entre los activos.
+
+Tercero, la solución satisface simultáneamente las dos restricciones del problema:
+
+$$
+w^\top \mathbf{1}=1
+$$
+
+$$
+w^\top \mu = \mu_p
+$$
+
+por construcción.
+
+# Conclusión
+
+La derivación analítica de la frontera eficiente en media-varianza, usando el método de Lagrange, conduce a una expresión cerrada para el vector de pesos óptimos del portafolio. A partir del lagrangiano, se obtuvo primero una expresión para $w$ en función de los multiplicadores de Lagrange; después, al sustituir en las restricciones, se formó un sistema lineal de dos ecuaciones con dos incógnitas; finalmente, al resolver este sistema y sustituir de nuevo, se obtuvo la forma explícita y su versión matricial compacta.
+
+El resultado final es:
+
+$$
+w^*_{\text{frontier}} = \Sigma^{-1} R \left(R^\top \Sigma^{-1} R\right)^{-1} P
+$$
+
+con
+
+$$
+R = [\mu \;\; \mathbf{1}],
+\qquad
+P =
+\begin{bmatrix}
+\mu_p \\
+1
+\end{bmatrix}
+$$
+
+lo cual representa la solución analítica general para la frontera eficiente de Markowitz con dos restricciones de igualdad.
+
+
+## Punto 2. Comprobación de Resultados: Portafolio de Mínima Varianza y Portafolio de Máximo Sharpe
+
+En esta sección se utilizan los precios de cierre ajustados contenidos en el archivo `data.xlsx` para construir los rendimientos diarios de **NVIDIA** y **AMAZON**. A partir de dichos rendimientos se calcula el vector de rendimientos esperados y la matriz de varianza-covarianza. Con esta información se obtienen los pesos del portafolio de **mínima varianza** y del portafolio de **máximo Sharpe** por dos vías distintas: primero mediante la solución analítica derivada en el punto anterior, y después mediante optimización numérica utilizando la función `scipy.optimize.minimize`. El propósito de esta sección es comprobar que ambas metodologías conducen al mismo resultado.
+
+### 2.1 Carga de datos y construcción de rendimientos diarios
+
+Sea $P_{i,t}$ el precio ajustado del activo $i$ en el día $t$. Entonces, el rendimiento diario simple se define como
+
+$$
+r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}} - 1.
+$$
+
+Con base en esta definición, se cargan los datos y se calculan los rendimientos diarios de ambos activos.
+
+```{python}
+#| label: punto2-carga-datos
+#| message: false
+#| warning: false
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+```
+
+```{python}
+# Cargar archivo de precios
+prices = pd.read_excel("data.xlsx")
+
+# Convertir la columna de fecha a formato datetime
+prices["Date"] = pd.to_datetime(prices["Date"])
+
+# Renombrar columnas para trabajar con una notación más compacta
+prices = prices.rename(columns={"NVIDIA": "NVDA", "AMAZON": "AMZN"})
+
+# Calcular rendimientos diarios
+returns = prices[["NVDA", "AMZN"]].pct_change().dropna()
+
+# Mostrar primeras observaciones
+returns.head()
+```
+
+### 2.2 Estimación del vector de rendimientos esperados y de la matriz de varianza-covarianza
+
+El vector de rendimientos esperados diarios se estima mediante el promedio muestral de los rendimientos:
+
+$$
+\mu =
+\begin{bmatrix}
+\mu_{\text{NVDA}} \\
+\mu_{\text{AMZN}}
+\end{bmatrix},
+\qquad
+\mu_i = \frac{1}{T} \sum_{t=1}^{T} r_{i,t}.
+$$
+
+Por su parte, la matriz de varianza-covarianza se estima como
+
+$$
+\Sigma =
+\begin{bmatrix}
+\operatorname{Var}(r_{\text{NVDA}}) & \operatorname{Cov}(r_{\text{NVDA}}, r_{\text{AMZN}}) \\
+\operatorname{Cov}(r_{\text{AMZN}}, r_{\text{NVDA}}) & \operatorname{Var}(r_{\text{AMZN}})
+\end{bmatrix}.
+$$
+
+```{python}
+#| label: punto2-parametros
+#| message: false
+#| warning: false
+
+# Vector de rendimientos esperados
+mu = returns.mean()
+
+# Matriz de varianza-covarianza
+Sigma = returns.cov()
+
+# Mostrar resultados con formato tabular
+mu_df = mu.to_frame(name="Rendimiento esperado diario")
+Sigma_df = Sigma.copy()
+
+mu_df
+```
+
+```{python}
+#| label: punto2-covarianzas
+#| message: false
+#| warning: false
+
+Sigma_df
+```
+
+A partir de los datos observados, el vector de rendimientos esperados diarios es aproximadamente
+
+$$
+\mu \approx
+\begin{bmatrix}
+0.002965 \\
+0.000759
+\end{bmatrix},
+$$
+
+mientras que la matriz de varianza-covarianza estimada es aproximadamente
+
+$$
+\Sigma \approx
+\begin{bmatrix}
+0.001011 & 0.000002 \\
+0.000002 & 0.000516
+\end{bmatrix}.
+$$
+
+### 2.3 Conversión de la tasa libre de riesgo a frecuencia diaria
+
+El enunciado establece una tasa libre de riesgo anual del $5\%$. Dado que los rendimientos se están trabajando en frecuencia diaria, es necesario expresar dicha tasa en la misma unidad temporal. Suponiendo $252$ días hábiles al año, la tasa libre de riesgo diaria queda dada por
+
+$$
+r_f = \frac{0.05}{252}.
+$$
+
+```{python}
+#| label: punto2-rf
+#| message: false
+#| warning: false
+
+rf = 0.05 / 252
+rf
+```
+
+Por tanto,
+
+$$
+r_f \approx 0.00019841.
+$$
+
+### 2.4 Obtención analítica de los portafolios de mínima varianza y máximo Sharpe
+
+Retomando el desarrollo del punto anterior, el portafolio de mínima varianza está dado por
+
+$$
+w_{\text{minvar}} =
+\frac{\Sigma^{-1}\mathbf{1}}
+{\mathbf{1}^{\top}\Sigma^{-1}\mathbf{1}},
+$$
+
+donde
+
+$$
+\mathbf{1} =
+\begin{bmatrix}
+1 \\
+1
+\end{bmatrix}.
+$$
+
+Análogamente, el portafolio de máximo Sharpe se obtiene mediante
+
+$$
+w_{\text{maxsharpe}} =
+\frac{\Sigma^{-1}(\mu - r_f \mathbf{1})}
+{\mathbf{1}^{\top}\Sigma^{-1}(\mu - r_f \mathbf{1})}.
+$$
+
+A continuación se calculan ambos vectores de pesos.
+
+```{python}
+#| label: punto2-solucion-analitica
+#| message: false
+#| warning: false
+
+mu_vec = mu.values
+Sigma_mat = Sigma.values
+ones = np.ones(len(mu_vec))
+
+# Inversa de la matriz de covarianza
+Sigma_inv = np.linalg.inv(Sigma_mat)
+
+# Pesos analíticos
+w_minvar_analytical = Sigma_inv @ ones / (ones @ Sigma_inv @ ones)
+w_maxsharpe_analytical = Sigma_inv @ (mu_vec - rf * ones) / (ones @ Sigma_inv @ (mu_vec - rf * ones))
+
+weights_analytical = pd.DataFrame({
+    "Portafolio": ["Mínima Varianza", "Máximo Sharpe"],
+    "Peso NVDA": [w_minvar_analytical[0], w_maxsharpe_analytical[0]],
+    "Peso AMZN": [w_minvar_analytical[1], w_maxsharpe_analytical[1]]
+})
+
+weights_analytical.round(6)
+```
+
+Los resultados obtenidos por la vía analítica son
+
+$$
+w_{\text{minvar}} \approx
+\begin{bmatrix}
+0.337380 \\
+0.662620
+\end{bmatrix},
+$$
+
+y
+
+$$
+w_{\text{maxsharpe}} \approx
+\begin{bmatrix}
+0.717063 \\
+0.282937
+\end{bmatrix}.
+$$
+
+Esto significa que el portafolio de mínima varianza asigna aproximadamente $33.7380\%$ a **NVDA** y $66.2620\%$ a **AMZN**, mientras que el portafolio de máximo Sharpe asigna aproximadamente $71.7063\%$ a **NVDA** y $28.2937\%$ a **AMZN**.
+
+### 2.5 Rendimiento esperado y volatilidad de los portafolios analíticos
+
+Para cualquier vector de pesos $w$, el rendimiento esperado del portafolio está dado por
+
+$$
+\mu_p = w^{\top}\mu,
+$$
+
+y la varianza del portafolio por
+
+$$
+\sigma_p^2 = w^{\top}\Sigma w.
+$$
+
+En consecuencia, la volatilidad del portafolio se calcula como
+
+$$
+\sigma_p = \sqrt{w^{\top}\Sigma w}.
+$$
+
+```{python}
+#| label: punto2-estadisticos-analiticos
+#| message: false
+#| warning: false
+
+def portfolio_return(w, mu_vec):
+    return float(w @ mu_vec)
+
+def portfolio_variance(w, Sigma_mat):
+    return float(w @ Sigma_mat @ w)
+
+def portfolio_volatility(w, Sigma_mat):
+    return float(np.sqrt(portfolio_variance(w, Sigma_mat)))
+
+analytical_stats = pd.DataFrame({
+    "Portafolio": ["Mínima Varianza", "Máximo Sharpe"],
+    "Rendimiento esperado": [
+        portfolio_return(w_minvar_analytical, mu_vec),
+        portfolio_return(w_maxsharpe_analytical, mu_vec)
+    ],
+    "Volatilidad": [
+        portfolio_volatility(w_minvar_analytical, Sigma_mat),
+        portfolio_volatility(w_maxsharpe_analytical, Sigma_mat)
+    ]
+})
+
+analytical_stats.round(6)
+```
+
+Con ello se obtiene que el portafolio de mínima varianza presenta aproximadamente
+
+$$
+\mu_{p,\text{minvar}} \approx 0.001503,
+\qquad
+\sigma_{p,\text{minvar}} \approx 0.018500,
+$$
+
+mientras que el portafolio de máximo Sharpe presenta aproximadamente
+
+$$
+\mu_{p,\text{maxsharpe}} \approx 0.002341,
+\qquad
+\sigma_{p,\text{maxsharpe}} \approx 0.023705.
+$$
+
+### 2.6 Verificación numérica mediante optimización con `scipy.optimize.minimize`
+
+Con el fin de comprobar la consistencia de la solución analítica, se resuelven ambos problemas mediante optimización numérica.
+
+#### 2.6.1 Portafolio de mínima varianza
+
+El problema numérico asociado es
+
+$$
+\min_{w} \quad w^{\top}\Sigma w
+$$
+
+sujeto a la restricción de plena inversión
+
+$$
+\mathbf{1}^{\top}w = 1.
+$$
+
+```{python}
+#| label: punto2-minvar-numerico
+#| message: false
+#| warning: false
+
+def objective_minvar(w, Sigma_mat):
+    return float(w @ Sigma_mat @ w)
+
+def gradient_minvar(w, Sigma_mat):
+    return 2 * Sigma_mat @ w
+
+constraint_sum_to_one = {
+    "type": "eq",
+    "fun": lambda w: np.sum(w) - 1
+}
+
+w0 = np.array([0.5, 0.5])
+
+res_minvar = minimize(
+    fun=objective_minvar,
+    x0=w0,
+    args=(Sigma_mat,),
+    jac=gradient_minvar,
+    method="SLSQP",
+    constraints=[constraint_sum_to_one],
+    options={"ftol": 1e-12, "maxiter": 1000}
+)
+
+w_minvar_numerical = res_minvar.x
+w_minvar_numerical
+```
+
+#### 2.6.2 Portafolio de máximo Sharpe
+
+En este caso se busca maximizar la razón de Sharpe:
+
+$$
+\max_w \quad \frac{w^{\top}\mu - r_f}{\sqrt{w^{\top}\Sigma w}}.
+$$
+
+Numéricamente, esto es equivalente a minimizar su negativo:
+
+$$
+\min_w \quad -\frac{w^{\top}\mu - r_f}{\sqrt{w^{\top}\Sigma w}}
+$$
+
+sujeto a
+
+$$
+\mathbf{1}^{\top}w = 1.
+$$
+
+```{python}
+#| label: punto2-maxsharpe-numerico
+#| message: false
+#| warning: false
+
+def negative_sharpe_ratio(w, mu_vec, Sigma_mat, rf):
+    port_ret = float(w @ mu_vec)
+    port_vol = float(np.sqrt(w @ Sigma_mat @ w))
+    return - (port_ret - rf) / port_vol
+
+res_maxsharpe = minimize(
+    fun=negative_sharpe_ratio,
+    x0=w0,
+    args=(mu_vec, Sigma_mat, rf),
+    method="SLSQP",
+    constraints=[constraint_sum_to_one],
+    options={"ftol": 1e-12, "maxiter": 1000}
+)
+
+w_maxsharpe_numerical = res_maxsharpe.x
+w_maxsharpe_numerical
+```
+
+### 2.7 Comparación entre la solución analítica y la solución numérica
+
+Una vez obtenidos los pesos por ambas metodologías, se comparan directamente sus resultados.
+
+```{python}
+#| label: punto2-comparacion
+#| message: false
+#| warning: false
+
+comparison = pd.DataFrame({
+    "Portafolio": [
+        "Mínima Varianza (Analítico)",
+        "Mínima Varianza (Numérico)",
+        "Máximo Sharpe (Analítico)",
+        "Máximo Sharpe (Numérico)"
+    ],
+    "Peso NVDA": [
+        w_minvar_analytical[0],
+        w_minvar_numerical[0],
+        w_maxsharpe_analytical[0],
+        w_maxsharpe_numerical[0]
+    ],
+    "Peso AMZN": [
+        w_minvar_analytical[1],
+        w_minvar_numerical[1],
+        w_maxsharpe_analytical[1],
+        w_maxsharpe_numerical[1]
+    ],
+    "Rendimiento esperado": [
+        portfolio_return(w_minvar_analytical, mu_vec),
+        portfolio_return(w_minvar_numerical, mu_vec),
+        portfolio_return(w_maxsharpe_analytical, mu_vec),
+        portfolio_return(w_maxsharpe_numerical, mu_vec)
+    ],
+    "Volatilidad": [
+        portfolio_volatility(w_minvar_analytical, Sigma_mat),
+        portfolio_volatility(w_minvar_numerical, Sigma_mat),
+        portfolio_volatility(w_maxsharpe_analytical, Sigma_mat),
+        portfolio_volatility(w_maxsharpe_numerical, Sigma_mat)
+    ]
+})
+
+comparison.round(6)
+```
+
+Para corroborar formalmente la coincidencia entre ambas rutas, se calcula el error absoluto entre los pesos analíticos y numéricos.
+
+```{python}
+#| label: punto2-diferencias
+#| message: false
+#| warning: false
+
+differences = pd.DataFrame({
+    "Comparación": ["Mínima Varianza", "Máximo Sharpe"],
+    "Error absoluto en NVDA": [
+        abs(w_minvar_analytical[0] - w_minvar_numerical[0]),
+        abs(w_maxsharpe_analytical[0] - w_maxsharpe_numerical[0])
+    ],
+    "Error absoluto en AMZN": [
+        abs(w_minvar_analytical[1] - w_minvar_numerical[1]),
+        abs(w_maxsharpe_analytical[1] - w_maxsharpe_numerical[1])
+    ]
+})
+
+differences
+```
+
+### 2.8 Interpretación y comprobación de resultados
+
+Los resultados muestran que la solución numérica reproduce prácticamente de manera exacta la solución analítica. Los errores absolutos observados son del orden de precisión numérica de la computadora, lo cual confirma que ambas metodologías son consistentes.
+
+En términos económicos, el portafolio de **mínima varianza** asigna un mayor peso a **AMZN**, lo cual es razonable dado que este activo presenta una menor varianza individual. En contraste, el portafolio de **máximo Sharpe** incrementa significativamente la participación de **NVDA**, ya que su rendimiento esperado diario es considerablemente superior y compensa el mayor nivel de riesgo.
+
+En consecuencia, puede afirmarse que:
+
+$$
+w_{\text{minvar}} \approx
+\begin{bmatrix}
+0.337380 \\
+0.662620
+\end{bmatrix},
+\qquad
+w_{\text{maxsharpe}} \approx
+\begin{bmatrix}
+0.717063 \\
+0.282937
+\end{bmatrix},
+$$
+
+con estadísticos diarios aproximados dados por
+
+$$
+\mu_{p,\text{minvar}} \approx 0.001503,
+\qquad
+\sigma_{p,\text{minvar}} \approx 0.018500,
+$$
+
+y
+
+$$
+\mu_{p,\text{maxsharpe}} \approx 0.002341,
+\qquad
+\sigma_{p,\text{maxsharpe}} \approx 0.023705.
+$$
+
+Con esto queda comprobado que la implementación numérica mediante `scipy.optimize.minimize` valida correctamente la solución cerrada derivada en el punto anterior.
+
+
+## Punto 3. Gráfica de la Frontera Eficiente en Media Varianza
+
+Con los parámetros estimados en el punto anterior, ahora se procede a construir la gráfica de la **frontera eficiente analítica** para el portafolio conformado por **NVDA** y **AMZN**. El objetivo es representar visualmente el conjunto de portafolios factibles en el espacio media-varianza, identificar la región eficiente y ubicar en la misma gráfica los activos individuales, el portafolio de mínima varianza y el portafolio de máximo Sharpe.
+
+### 3.1 Construcción analítica de la frontera eficiente
+
+Retomando la derivación del punto 1, para cualquier rendimiento objetivo $\mu_p$, el vector de pesos óptimos de la frontera eficiente está dado por
+
+$$
+w^*_{\text{frontier}} = \Sigma^{-1} R \left(R^\top \Sigma^{-1} R\right)^{-1} P,
+$$
+
+donde
+
+$$
+R =
+\begin{bmatrix}
+\mu & \mathbf{1}
+\end{bmatrix},
+\qquad
+P =
+\begin{bmatrix}
+\mu_p \\
+1
+\end{bmatrix}.
+$$
+
+En este caso, como el portafolio está compuesto por dos activos, para cada valor objetivo de $\mu_p$ se obtiene un vector de pesos de dimensión $2 \times 1$. A partir de dichos pesos se calcula la volatilidad asociada mediante
+
+$$
+\sigma_p = \sqrt{w^\top \Sigma w}.
+$$
+
+Por tanto, al variar $\mu_p$ dentro de un rango suficientemente amplio, se obtiene el conjunto de portafolios que conforman la **hipérbole de Markowitz**.
+
+```{python}
+#| label: punto3-frontera-analitica
+#| message: false
+#| warning: false
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Construcción matricial de la solución analítica de la frontera
+R = np.column_stack((mu_vec, ones))
+R_inv_term = np.linalg.inv(R.T @ Sigma_inv @ R)
+
+# Rango de rendimientos objetivo
+target_returns = np.linspace(0.0, 0.0030, 400)
+
+frontier_weights = []
+frontier_risks = []
+frontier_returns = []
+
+for target in target_returns:
+    P = np.array([target, 1.0])
+    w_frontier = Sigma_inv @ R @ R_inv_term @ P
+
+    frontier_weights.append(w_frontier)
+    frontier_returns.append(float(w_frontier @ mu_vec))
+    frontier_risks.append(float(np.sqrt(w_frontier @ Sigma_mat @ w_frontier)))
+
+frontier_weights = np.array(frontier_weights)
+frontier_returns = np.array(frontier_returns)
+frontier_risks = np.array(frontier_risks)
+```
+
+### 3.2 Identificación del portafolio de mínima varianza y de la región eficiente
+
+La curva obtenida en el paso anterior contiene tanto la parte eficiente como la parte ineficiente de la hipérbole. La frontera eficiente corresponde al tramo superior de la curva, es decir, al conjunto de portafolios que, para un mismo nivel de riesgo, ofrecen el mayor rendimiento esperado posible.
+
+El punto de separación entre ambos tramos está dado por el **portafolio de mínima varianza**, obtenido en el punto 2 como
+
+$$
+w_{\text{minvar}} =
+\frac{\Sigma^{-1}\mathbf{1}}
+{\mathbf{1}^{\top}\Sigma^{-1}\mathbf{1}}.
+$$
+
+Por consiguiente, la región eficiente se identifica seleccionando aquellos portafolios cuya rentabilidad es mayor o igual a la del portafolio de mínima varianza.
+
+```{python}
+#| label: punto3-region-eficiente
+#| message: false
+#| warning: false
+
+mu_minvar = portfolio_return(w_minvar_analytical, mu_vec)
+
+# Máscara para la parte eficiente de la frontera
+efficient_mask = frontier_returns >= mu_minvar
+
+efficient_risks = frontier_risks[efficient_mask]
+efficient_returns = frontier_returns[efficient_mask]
+```
+
+### 3.3 Coordenadas de los activos individuales
+
+Además de la frontera de portafolios, resulta útil ubicar en el mismo plano las coordenadas de los activos individuales. Para cada activo, el rendimiento esperado es simplemente su media muestral y la volatilidad es la raíz cuadrada de su varianza:
+
+$$
+\mu_i = \mathbb{E}[r_i],
+\qquad
+\sigma_i = \sqrt{\operatorname{Var}(r_i)}.
+$$
+
+```{python}
+#| label: punto3-activos-individuales
+#| message: false
+#| warning: false
+
+asset_returns = mu.values
+asset_vols = returns.std().values
+
+assets_summary = pd.DataFrame({
+    "Activo": ["NVDA", "AMZN"],
+    "Rendimiento esperado": asset_returns,
+    "Volatilidad": asset_vols
+})
+
+assets_summary.round(6)
+```
+
+En consecuencia, las coordenadas de los activos en el plano $\left(\sigma_p,\mu_p\right)$ son aproximadamente:
+
+- **NVDA**: $\left(0.031793,\; 0.002965\right)$
+- **AMZN**: $\left(0.022709,\; 0.000759\right)$
+
+### 3.4 Coordenadas del portafolio de mínima varianza y del portafolio de máximo Sharpe
+
+Del punto 2 ya se cuenta con los portafolios relevantes de referencia. Sus coordenadas se obtienen evaluando su rendimiento esperado y su volatilidad.
+
+```{python}
+#| label: punto3-portafolios-referencia
+#| message: false
+#| warning: false
+
+minvar_point = (
+    portfolio_volatility(w_minvar_analytical, Sigma_mat),
+    portfolio_return(w_minvar_analytical, mu_vec)
+)
+
+maxsharpe_point = (
+    portfolio_volatility(w_maxsharpe_analytical, Sigma_mat),
+    portfolio_return(w_maxsharpe_analytical, mu_vec)
+)
+
+reference_portfolios = pd.DataFrame({
+    "Portafolio": ["Mínima Varianza", "Máximo Sharpe"],
+    "Volatilidad": [minvar_point[0], maxsharpe_point[0]],
+    "Rendimiento esperado": [minvar_point[1], maxsharpe_point[1]]
+})
+
+reference_portfolios.round(6)
+```
+
+Por tanto, los puntos de referencia a graficar son aproximadamente
+
+$$
+(\sigma_{p,\text{minvar}}, \mu_{p,\text{minvar}})
+=
+(0.018500,\; 0.001503),
+$$
+
+y
+
+$$
+(\sigma_{p,\text{maxsharpe}}, \mu_{p,\text{maxsharpe}})
+=
+(0.023705,\; 0.002341).
+$$
+
+### 3.5 Gráfica de la hipérbole de Markowitz y de la frontera eficiente
+
+A continuación se construye la visualización completa incorporando:
+
+1. la **hipérbole de Markowitz** o conjunto total de portafolios factibles;
+2. la **frontera eficiente** como tramo superior;
+3. las coordenadas de los activos individuales;
+4. el portafolio de **mínima varianza**;
+5. el portafolio de **máximo Sharpe**.
+
+```{python}
+#| label: punto3-grafica-frontera
+#| fig-width: 10
+#| fig-height: 6
+#| message: false
+#| warning: false
+
+plt.figure(figsize=(10, 6))
+
+# Hipérbole completa de Markowitz
+plt.scatter(frontier_risks, frontier_returns, s=18, label="Markowitz Bullet")
+
+# Frontera eficiente
+plt.scatter(efficient_risks, efficient_returns, s=18, alpha=0.35, label="Efficient Frontier")
+
+# Activos individuales
+plt.scatter(asset_vols[0], asset_returns[0], s=90, label="NVDA")
+plt.scatter(asset_vols[1], asset_returns[1], s=90, label="AMZN")
+
+# Portafolio de mínima varianza
+plt.scatter(minvar_point[0], minvar_point[1], s=100, label="Min Variance Portfolio")
+
+# Portafolio de máximo Sharpe
+plt.scatter(maxsharpe_point[0], maxsharpe_point[1], s=100, label="Max Sharpe Portfolio")
+
+plt.title("Analytical Portfolio Efficient Frontier")
+plt.xlabel(r"$\sigma_p$")
+plt.ylabel(r"$\mu_p$")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.show()
+```
+
+### 3.6 Interpretación de la gráfica
+
+La gráfica obtenida permite observar con claridad la geometría del problema de optimización en media-varianza. En primer lugar, la nube de puntos que forma la **hipérbole de Markowitz** representa el universo de portafolios que pueden construirse con los dos activos analizados. Cada punto de dicha curva corresponde a un nivel particular de rendimiento esperado y riesgo, calculado a partir de la solución analítica del problema con restricciones de rendimiento y suma de pesos.
+
+El extremo izquierdo de la curva corresponde al **portafolio de mínima varianza**, ya que es el portafolio con menor volatilidad posible entre todos los portafolios factibles. Este punto actúa como el vértice de la hipérbole y separa naturalmente la curva en dos regiones: una rama inferior, que es ineficiente, y una rama superior, que constituye la **frontera eficiente**. La razón es que cualquier punto de la rama inferior puede ser dominado por otro portafolio con el mismo riesgo y mayor rendimiento, o con el mismo rendimiento y menor riesgo.
+
+Por su parte, el **portafolio de máximo Sharpe** se localiza sobre la región eficiente, pero no coincide necesariamente con el portafolio de mínima varianza. Esto es consistente con su interpretación económica: el portafolio de máximo Sharpe no minimiza únicamente la volatilidad, sino que maximiza la rentabilidad excedente por unidad de riesgo, es decir, optimiza el trade-off entre riesgo y retorno una vez considerada la tasa libre de riesgo.
+
+Asimismo, la posición relativa de los activos individuales permite entender por qué los portafolios óptimos adoptan ciertas combinaciones. **NVDA** presenta un rendimiento esperado mayor, pero también una volatilidad considerablemente más alta. En cambio, **AMZN** exhibe un rendimiento esperado menor, pero con un menor nivel de riesgo. Por ello, el portafolio de mínima varianza asigna un mayor peso a **AMZN**, mientras que el portafolio de máximo Sharpe incrementa la participación de **NVDA**, aprovechando su mayor retorno esperado.
+
+En conjunto, la gráfica confirma visualmente la teoría desarrollada en los puntos anteriores: el problema de optimización media-varianza genera una estructura hiperbólica en el plano riesgo-rendimiento, dentro de la cual la frontera eficiente identifica los portafolios que racionalmente deberían ser preferidos por un inversionista averso al riesgo.
+
+### 3.7 Conclusión del punto
+
+Con base en la construcción analítica realizada, se obtiene correctamente la **frontera eficiente** del portafolio compuesto por **NVDA** y **AMZN**, así como la **hipérbole completa de Markowitz**. Además, se identifican y representan de forma explícita los puntos correspondientes a los activos individuales, al portafolio de mínima varianza y al portafolio de máximo Sharpe.
+
+De este modo, queda cumplido el objetivo del punto 3, ya que se logra traducir la solución analítica del problema de media-varianza a una representación gráfica consistente con la teoría y con los resultados numéricos obtenidos en el punto anterior.
