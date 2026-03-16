@@ -11,15 +11,83 @@ import yfinance as yf
 @dataclass
 class CorrelationPortfolioSelector(AssetsResearch):
     """
-    Selector escalable para construir portafolios de minima correlacion por grupos.
+    Build portfolios by selecting assets with the lowest cross-correlation.
 
-    Flujo:
-    1) Rankea activos dentro de cada grupo usando su correlacion promedio con pares.
-    2) Toma los mejores candidatos por grupo (top_k_per_group).
-    3) Construye un portafolio multi-grupo y vuelve a filtrar por minima correlacion.
-    4) Permite actualizar un portafolio existente con nuevos candidatos.
+    `CorrelationPortfolioSelector` extends the idea of `AssetsResearch` from
+    single-universe analytics to grouped portfolio construction. The class is
+    designed for workflows where assets are first organized into groups
+    (sector, region, style, factor, industry, etc.), then ranked by how weakly
+    they co-move with their peers, and finally combined into a lower-correlation
+    multi-group portfolio.
 
-    Un grupo puede representar sector, factor de riesgo, industria, region, etc.
+    Parameters
+    ----------
+    start_date : str
+        Start date used to download historical prices.
+    end_date : str | None, default None
+        Optional end date used to download historical prices.
+    price_field : str, default "Close"
+        Price column extracted from Yahoo Finance data.
+    use_absolute_corr : bool, default True
+        If `True`, correlations are evaluated by absolute value. This treats
+        strong positive and strong negative correlation as similarly dependent.
+    min_coverage : float, default 0.80
+        Minimum non-null coverage ratio required to keep a ticker in the
+        downloaded price panel.
+
+    Attributes
+    ----------
+    start_date : str
+        Start date used in the selector workflow.
+    end_date : str | None
+        Optional end date used in the selector workflow.
+    price_field : str
+        Selected market data column for price extraction.
+    use_absolute_corr : bool
+        Whether to score assets using absolute correlation values.
+    min_coverage : float
+        Minimum accepted coverage ratio for price history completeness.
+    prices_by_group : dict[str, pandas.DataFrame]
+        Cached prices for each processed group after ranking.
+    returns_by_group : dict[str, pandas.DataFrame]
+        Cached daily returns for each processed group after ranking.
+    ranking_by_group : pandas.DataFrame
+        Consolidated ranking table produced by `rank_within_groups()`.
+
+    Methods
+    -------
+    rank_within_groups(grouped_tickers, intra_group_weights=None, top_k=1)
+        Rank assets inside each group from lower to higher average correlation.
+    build_multigroup_portfolio(top_k_per_group=1, final_size=None)
+        Build the final cross-group portfolio from the best ranked candidates.
+    update_portfolio(current_tickers, candidate_tickers, max_new_assets=1)
+        Add new assets to an existing portfolio using correlation-based scoring.
+    run_pipeline(grouped_tickers, top_k_in_group=1, final_size=None, intra_group_weights=None)
+        Execute the full workflow: intra-group ranking plus multi-group selection.
+
+    Inherited API
+    -------------
+    Since this class inherits from `AssetsResearch`, the IDE will also expose
+    the research methods defined there, such as `get_prices`, `get_returns`,
+    `annual_return`, `annual_volatility`, `covariance`, and `correlation`.
+
+    Notes
+    -----
+    The workflow is typically:
+
+    1. Call `rank_within_groups(...)` with grouped assets.
+    2. Inspect `ranking_by_group`.
+    3. Call `build_multigroup_portfolio(...)` to get the final selection.
+    4. Optionally call `update_portfolio(...)` later with new candidates.
+
+    Examples
+    --------
+    >>> selector = CorrelationPortfolioSelector(start_date="2024-01-01")
+    >>> ranking = selector.rank_within_groups(
+    ...     {"banks": ["JPM", "BAC", "C"], "tech": ["AAPL", "MSFT", "ORCL"]},
+    ...     top_k=2,
+    ... )
+    >>> portfolio = selector.build_multigroup_portfolio(top_k_per_group=2, final_size=3)
     """
 
     start_date: str
@@ -87,8 +155,20 @@ class CorrelationPortfolioSelector(AssetsResearch):
         weights: Optional[Dict[str, float]] = None,
     ) -> pd.Series:
         """
-        Score por ticker = correlacion promedio con sus pares.
-        Entre menor sea el score, menor dependencia del resto del grupo.
+        Compute an average correlation score for each ticker.
+
+        Parameters
+        ----------
+        corr : pandas.DataFrame
+            Square correlation matrix whose rows and columns are tickers.
+        weights : dict[str, float] | None, default None
+            Optional per-peer weights used to build a weighted average score.
+
+        Returns
+        -------
+        pandas.Series
+            Series indexed by ticker with lower scores representing lower
+            dependency on the rest of the group.
         """
         if corr.shape[1] < 2:
             return pd.Series(dtype=float)
@@ -129,7 +209,30 @@ class CorrelationPortfolioSelector(AssetsResearch):
         intra_group_weights: Optional[Dict[str, Dict[str, float]]] = None,
         top_k: int = 1,
     ) -> pd.DataFrame:
-        """Genera ranking intra-grupo de menor a mayor correlacion promedio."""
+        """
+        Rank assets within each group by average pairwise correlation.
+
+        Parameters
+        ----------
+        grouped_tickers : dict[str, Sequence[str]]
+            Mapping from group name to the list of tickers that belong to it.
+        intra_group_weights : dict[str, dict[str, float]] | None, default None
+            Optional per-group weights used to compute weighted correlation
+            scores among peers.
+        top_k : int, default 1
+            Number of top-ranked assets per group marked as selected.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Ranking table with columns `group`, `ticker`, `corr_score`,
+            `rank_in_group`, and `selected`.
+
+        Raises
+        ------
+        ValueError
+            If `top_k < 1` or if no valid ranking can be generated.
+        """
         if top_k < 1:
             raise ValueError("top_k debe ser >= 1.")
 
@@ -190,11 +293,29 @@ class CorrelationPortfolioSelector(AssetsResearch):
         final_size: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
-        Construye el portafolio final tomando candidatos de baja correlacion por grupo.
+        Build the final portfolio using the best candidates from each group.
 
-        Regla base:
-        - Toma el mejor candidato por grupo (o de los top_k por grupo, segun ranking).
-        - Vuelve a rankear esos candidatos por correlacion mutua para obtener el set final.
+        Parameters
+        ----------
+        top_k_per_group : int, default 1
+            Maximum rank considered inside each group before the final
+            cross-group correlation filter.
+        final_size : int | None, default None
+            Number of assets to keep in the final portfolio. If `None`, all
+            scored candidates are kept.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with the intermediate selection per group, candidate
+            correlation matrix, candidate scores, final tickers, final
+            correlation matrix, and the mean off-diagonal correlation.
+
+        Raises
+        ------
+        ValueError
+            If ranking data is missing, if `top_k_per_group < 1`, or if the
+            candidate universe is too small to build the portfolio.
         """
         if self.ranking_by_group.empty:
             raise ValueError("Primero ejecuta rank_within_groups(...).")
@@ -258,7 +379,29 @@ class CorrelationPortfolioSelector(AssetsResearch):
         candidate_tickers: Sequence[str],
         max_new_assets: int = 1,
     ) -> Dict[str, Any]:
-        """Actualiza un portafolio agregando candidatos con menor correlacion al actual."""
+        """
+        Update an existing portfolio with low-correlation candidates.
+
+        Parameters
+        ----------
+        current_tickers : Sequence[str]
+            Current portfolio holdings.
+        candidate_tickers : Sequence[str]
+            New assets evaluated as possible additions.
+        max_new_assets : int, default 1
+            Maximum number of new assets to add.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with updated tickers, the selected additions, candidate
+            scores, and the full correlation matrix used in the comparison.
+
+        Raises
+        ------
+        ValueError
+            If `max_new_assets < 1`.
+        """
         if max_new_assets < 1:
             raise ValueError("max_new_assets debe ser >= 1.")
 
@@ -312,7 +455,26 @@ class CorrelationPortfolioSelector(AssetsResearch):
         final_size: Optional[int] = None,
         intra_group_weights: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Dict[str, Any]:
-        """Pipeline end-to-end: ranking intra-grupo + portafolio multi-grupo."""
+        """
+        Execute the full grouped selection workflow end to end.
+
+        Parameters
+        ----------
+        grouped_tickers : dict[str, Sequence[str]]
+            Mapping from group name to the list of tickers in each group.
+        top_k_in_group : int, default 1
+            Number of best-ranked assets considered from each group.
+        final_size : int | None, default None
+            Final number of assets kept in the cross-group portfolio.
+        intra_group_weights : dict[str, dict[str, float]] | None, default None
+            Optional peer weights used during intra-group scoring.
+
+        Returns
+        -------
+        dict[str, Any]
+            Combined result containing the group ranking and final portfolio
+            selection artifacts.
+        """
         ranking = self.rank_within_groups(
             grouped_tickers=grouped_tickers,
             intra_group_weights=intra_group_weights,

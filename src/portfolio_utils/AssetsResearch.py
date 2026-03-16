@@ -5,29 +5,104 @@ from typing import Iterable, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+
+try:
+    import yfinance as yf
+except ModuleNotFoundError:
+    class _MissingYFinance:
+        """Fallback used when yfinance is unavailable in the environment."""
+
+        @staticmethod
+        def download(*args, **kwargs):
+            raise ModuleNotFoundError(
+                "yfinance is required to download market data. "
+                "Install it to use AssetsResearch.download_prices()."
+            )
+
+    yf = _MissingYFinance()
 
 
 @dataclass
 class AssetsResearch:
     """
-    Research helper for asset prices and return metrics.
+    Research and analytics helper for a group of financial assets.
 
-    This class centralizes a simple workflow:
-    1) Download close prices from Yahoo Finance.
-    2) Compute daily returns.
-    3) Compute summary metrics (return, volatility, skew, intervals, etc.).
+    `AssetsResearch` centralizes the basic workflow used across the project:
+    downloading market prices, computing daily returns, and exposing common
+    descriptive statistics for one or many tickers. The class keeps a lazy
+    in-memory cache for downloaded prices and computed returns, so most public
+    methods can be called directly without manually preparing intermediate data.
 
-    Quick start:
-        research = AssetsResearch(["JPM", "V"], start="2020-01-01")
-        research.download_prices()
-        metrics_df = research.metrics()
+    Parameters
+    ----------
+    tickers : Iterable[str]
+        Asset symbols to analyze. A single ticker string is also accepted and
+        normalized internally to a list.
+    start : str
+        Start date passed to `yfinance.download`.
+    end : str | None, default None
+        Optional end date passed to `yfinance.download`.
+    price_field : str, default "Close"
+        Price column extracted from Yahoo Finance data. Typical values are
+        `"Close"` and `"Adj Close"`.
 
-    Public API map:
-    - Data loading: download_prices, compute_returns, get_prices, get_returns
-    - Metrics: annual_return, annual_volatility, skew, vol_over_mean
-    - Intervals/reporting: return_interval_pct, metrics
-    - Statistics: describe_returns, covariance, correlation
+    Attributes
+    ----------
+    tickers : list[str]
+        Normalized list of ticker symbols used by the instance.
+    start : str
+        Start date used for downloads.
+    end : str | None
+        Optional end date used for downloads.
+    price_field : str
+        Selected price column from the downloaded market data.
+    prices : pandas.DataFrame
+        Cached prices indexed by date with one column per ticker.
+    returns : pandas.DataFrame
+        Cached daily percentage returns indexed by date.
+
+    Methods
+    -------
+    download_prices()
+        Download and cache prices from Yahoo Finance.
+    compute_returns()
+        Compute and cache daily percentage returns from prices.
+    get_prices(tickers=None)
+        Return all cached prices or a ticker subset.
+    get_returns(tickers=None)
+        Return all cached returns or a ticker subset.
+    annual_return(tickers=None)
+        Compute annualized mean return using 252 trading days.
+    annual_volatility(tickers=None)
+        Compute annualized volatility using 252 trading days.
+    skew(tickers=None)
+        Compute skewness of daily returns.
+    vol_over_mean(tickers=None)
+        Compute the ratio between annualized volatility and annualized return.
+    return_interval_pct(tickers=None, z=2.65)
+        Estimate a simple return interval in percentage terms.
+    metrics(tickers=None)
+        Build a consolidated per-ticker metrics table.
+    describe_returns(tickers=None)
+        Return `DataFrame.describe()` over daily returns.
+    covariance(tickers=None)
+        Compute the covariance matrix of daily returns.
+    correlation(tickers=None)
+        Compute the correlation matrix of daily returns.
+
+    Notes
+    -----
+    - The caches stored in `prices` and `returns` are reset automatically when
+      `tickers`, `start`, `end`, or `price_field` change.
+    - Public methods that depend on prices or returns load the required data
+      lazily when it is not already available.
+
+    Examples
+    --------
+    >>> research = AssetsResearch(["JPM", "V"], start="2020-01-01")
+    >>> research.get_prices().head()
+    >>> research.annual_return()
+    >>> research.correlation()
     """
 
     tickers: InitVar[Iterable[str]]
@@ -51,7 +126,20 @@ class AssetsResearch:
         end: Optional[str],
         price_field: str,
     ) -> None:
-        """Store validated inputs in private attributes."""
+        """
+        Initialize validated public configuration and reset caches.
+
+        Parameters
+        ----------
+        tickers : Iterable[str]
+            Symbols to analyze.
+        start : str
+            Start date for the historical data window.
+        end : str | None
+            Optional end date for the historical data window.
+        price_field : str
+            Market data column used to build the research dataset.
+        """
         self.tickers = tickers
         self.start = start
         self.end = end
@@ -153,10 +241,21 @@ class AssetsResearch:
 
     def download_prices(self) -> pd.DataFrame:
         """
-        Download price data from Yahoo Finance and cache it in ``self.prices``.
+        Download price data from Yahoo Finance and cache it in `prices`.
 
-        Returns:
-            pd.DataFrame: Price table indexed by date, columns are tickers.
+        The returned table is indexed by date and contains one column per
+        ticker. If Yahoo Finance returns a multi-indexed table, the selected
+        `price_field` is extracted first.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Price table indexed by date, with one column per ticker.
+
+        Raises
+        ------
+        ValueError
+            If `price_field` is not present in the downloaded dataset.
         """
         data = yf.download(
             self.tickers,
@@ -187,10 +286,13 @@ class AssetsResearch:
         """
         Compute daily percentage returns from cached prices.
 
-        If prices are not available, it triggers ``download_prices()`` first.
+        If prices are not available, this method triggers `download_prices()`
+        first.
 
-        Returns:
-            pd.DataFrame: Daily returns by ticker.
+        Returns
+        -------
+        pandas.DataFrame
+            Daily percentage returns by ticker.
         """
         if self.prices.empty:
             self.download_prices()
@@ -204,11 +306,20 @@ class AssetsResearch:
         """
         Return cached prices for all tickers or a subset.
 
-        Args:
-            tickers: Optional ticker or list/tuple of tickers to filter.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to filter.
 
-        Returns:
-            pd.DataFrame: Filtered price table.
+        Returns
+        -------
+        pandas.DataFrame
+            Cached price table for the requested tickers.
+
+        Raises
+        ------
+        ValueError
+            If any requested ticker is not present in the cached data.
         """
         if self.prices.empty:
             self.download_prices()
@@ -222,11 +333,20 @@ class AssetsResearch:
         """
         Return cached returns for all tickers or a subset.
 
-        Args:
-            tickers: Optional ticker or list/tuple of tickers to filter.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to filter.
 
-        Returns:
-            pd.DataFrame: Filtered return table.
+        Returns
+        -------
+        pandas.DataFrame
+            Cached return table for the requested tickers.
+
+        Raises
+        ------
+        ValueError
+            If any requested ticker is not present in the cached data.
         """
         if self.returns.empty:
             self.compute_returns()
@@ -239,8 +359,15 @@ class AssetsResearch:
         """
         Compute annualized expected return using 252 trading days.
 
-        Returns:
-            pd.Series: Annualized mean return by ticker.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.Series
+            Annualized mean return by ticker.
         """
         data = self.get_returns(tickers)
         return data.mean() * 252
@@ -251,8 +378,15 @@ class AssetsResearch:
         """
         Compute annualized volatility using 252 trading days.
 
-        Returns:
-            pd.Series: Annualized standard deviation by ticker.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.Series
+            Annualized standard deviation by ticker.
         """
         data = self.get_returns(tickers)
         return data.std() * np.sqrt(252)
@@ -261,8 +395,15 @@ class AssetsResearch:
         """
         Compute skewness of daily returns.
 
-        Returns:
-            pd.Series: Return skewness by ticker.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.Series
+            Return skewness by ticker.
         """
         data = self.get_returns(tickers)
         return data.skew()
@@ -276,8 +417,15 @@ class AssetsResearch:
         A lower value can indicate a better risk/return profile
         for this simple ratio.
 
-        Returns:
-            pd.Series: Volatility over annual return by ticker.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.Series
+            Volatility over annual return by ticker.
         """
         annual_ret = self.annual_return(tickers)
         annual_vol = self.annual_volatility(tickers)
@@ -292,12 +440,17 @@ class AssetsResearch:
         Interval is computed as:
             annual_return_pct +/- z * annual_volatility_pct
 
-        Args:
-            tickers: Optional ticker selection.
-            z: Z-score multiplier (default 2.65).
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+        z : float, default 2.65
+            Multiplier used to build the interval around the annualized return.
 
-        Returns:
-            pd.DataFrame: DataFrame with ``low`` and ``high`` columns.
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame with `low` and `high` columns in percentage terms.
         """
         annual_ret_pct = self.annual_return(tickers) * 100
         annual_vol_pct = self.annual_volatility(tickers) * 100
@@ -321,8 +474,15 @@ class AssetsResearch:
         - return_interval_low_pct
         - return_interval_high_pct
 
-        Returns:
-            pd.DataFrame: Multi-metric summary by ticker.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Multi-metric summary indexed by ticker.
         """
         if self.returns.empty:
             self.compute_returns()
@@ -361,8 +521,15 @@ class AssetsResearch:
         """
         Return descriptive statistics for daily returns.
 
-        Returns:
-            pd.DataFrame: ``pandas.DataFrame.describe()`` over returns.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Result of calling `DataFrame.describe()` on daily returns.
         """
         data = self.get_returns(tickers)
         return data.describe()
@@ -373,8 +540,15 @@ class AssetsResearch:
         """
         Compute covariance matrix of daily returns.
 
-        Returns:
-            pd.DataFrame: Covariance matrix.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Covariance matrix of daily returns.
         """
         data = self.get_returns(tickers)
         return data.cov()
@@ -385,8 +559,15 @@ class AssetsResearch:
         """
         Compute correlation matrix of daily returns.
 
-        Returns:
-            pd.DataFrame: Correlation matrix.
+        Parameters
+        ----------
+        tickers : str | Sequence[str] | None, default None
+            Optional ticker or collection of tickers to include.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Correlation matrix of daily returns.
         """
         data = self.get_returns(tickers)
         return data.corr()
@@ -394,14 +575,34 @@ class AssetsResearch:
 
 # Bind properties after dataclass processing to keep constructor parameters
 # (`tickers`, `start`, `end`, `price_field`) and still encapsulate state.
-AssetsResearch.tickers = property(AssetsResearch._get_tickers, AssetsResearch._set_tickers)
-AssetsResearch.start = property(AssetsResearch._get_start, AssetsResearch._set_start)
-AssetsResearch.end = property(AssetsResearch._get_end, AssetsResearch._set_end)
-AssetsResearch.price_field = property(
-    AssetsResearch._get_price_field, AssetsResearch._set_price_field
+AssetsResearch.tickers = property(
+    AssetsResearch._get_tickers,
+    AssetsResearch._set_tickers,
+    doc="Normalized list of ticker symbols used by the research instance.",
 )
-AssetsResearch.prices = property(AssetsResearch._get_prices)
-AssetsResearch.returns = property(AssetsResearch._get_returns)
+AssetsResearch.start = property(
+    AssetsResearch._get_start,
+    AssetsResearch._set_start,
+    doc="Start date used to download historical market data.",
+)
+AssetsResearch.end = property(
+    AssetsResearch._get_end,
+    AssetsResearch._set_end,
+    doc="Optional end date used to download historical market data.",
+)
+AssetsResearch.price_field = property(
+    AssetsResearch._get_price_field,
+    AssetsResearch._set_price_field,
+    doc="Selected Yahoo Finance price column, for example 'Close'.",
+)
+AssetsResearch.prices = property(
+    AssetsResearch._get_prices,
+    doc="Cached price table indexed by date with one column per ticker.",
+)
+AssetsResearch.returns = property(
+    AssetsResearch._get_returns,
+    doc="Cached daily percentage returns indexed by date.",
+)
 
 # Optional alias with standard class naming
 if __name__ == "__main__":
