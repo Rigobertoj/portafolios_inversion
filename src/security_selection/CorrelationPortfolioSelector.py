@@ -1,14 +1,19 @@
 # === CHUNK INDEPENDIENTE: CorrelationPortfolioSelector ===
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence
-from .AssetsResearch import AssetsResearch 
+
+if __package__ in {None, ""}:
+    from AssetsResearch import AssetsResearch, yf
+else:
+    from .AssetsResearch import AssetsResearch, yf
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 
-@dataclass
+@dataclass(init=False)
 class CorrelationPortfolioSelector(AssetsResearch):
     """
     Build portfolios by selecting assets with the lowest cross-correlation.
@@ -99,6 +104,23 @@ class CorrelationPortfolioSelector(AssetsResearch):
     prices_by_group: Dict[str, pd.DataFrame] = field(init=False, default_factory=dict)
     returns_by_group: Dict[str, pd.DataFrame] = field(init=False, default_factory=dict)
     ranking_by_group: pd.DataFrame = field(init=False, default_factory=pd.DataFrame)
+
+    def __init__(
+        self,
+        start_date: str,
+        end_date: Optional[str] = None,
+        price_field: str = "Close",
+        use_absolute_corr: bool = True,
+        min_coverage: float = 0.80,
+    ) -> None:
+        self.start_date = start_date
+        self.end_date = end_date
+        self.price_field = price_field
+        self.use_absolute_corr = use_absolute_corr
+        self.min_coverage = min_coverage
+        self.prices_by_group = {}
+        self.returns_by_group = {}
+        self.ranking_by_group = pd.DataFrame()
 
     @staticmethod
     def _as_list(tickers: Iterable[str]) -> List[str]:
