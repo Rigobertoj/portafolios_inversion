@@ -168,7 +168,9 @@ class AssetsResearch:
     def _set_start(self, value: str) -> None:
         if not isinstance(value, str) or not value.strip():
             raise ValueError("start must be a non-empty date string.")
-        self.__start = value
+        start = value.strip()
+        self._validate_date_range(start=start, end=self.__end)
+        self.__start = start
         self._reset_cache()
 
     def _get_end(self) -> Optional[str]:
@@ -178,7 +180,9 @@ class AssetsResearch:
     def _set_end(self, value: Optional[str]) -> None:
         if value is not None and (not isinstance(value, str) or not value.strip()):
             raise ValueError("end must be None or a non-empty date string.")
-        self.__end = value
+        end = value.strip() if value is not None else None
+        self._validate_date_range(start=self.__start, end=end)
+        self.__end = end
         self._reset_cache()
 
     def _get_price_field(self) -> str:
@@ -217,6 +221,31 @@ class AssetsResearch:
         if isinstance(tickers, str):
             return [tickers]
         return [str(t) for t in tickers]
+
+    @staticmethod
+    def _validate_date_range(start: str, end: Optional[str]) -> None:
+        """Validate parseable dates and ensure the download window is ordered."""
+        if not start:
+            return
+
+        try:
+            start_ts = pd.Timestamp(start)
+        except Exception as exc:
+            raise ValueError(f"start must be a valid date string, got {start!r}.") from exc
+
+        if end is None:
+            return
+
+        try:
+            end_ts = pd.Timestamp(end)
+        except Exception as exc:
+            raise ValueError(f"end must be a valid date string, got {end!r}.") from exc
+
+        if end_ts <= start_ts:
+            raise ValueError(
+                "end must be later than start. "
+                "Yahoo Finance treats end as exclusive, so end=start returns no rows."
+            )
 
     @staticmethod
     def _normalize_select(
@@ -279,7 +308,16 @@ class AssetsResearch:
                     f"price_field '{self.price_field}' not found in downloaded data."
                 )
 
-        self._set_prices_cache(prices.dropna())
+        cleaned_prices = prices.dropna()
+        if cleaned_prices.empty:
+            tickers = ", ".join(self.tickers)
+            raise ValueError(
+                "No price data was downloaded for "
+                f"{tickers} between start={self.start!r} and end={self.end!r}. "
+                "Check the ticker symbols and date range."
+            )
+
+        self._set_prices_cache(cleaned_prices)
         return self.prices
 
     def compute_returns(self) -> pd.DataFrame:
