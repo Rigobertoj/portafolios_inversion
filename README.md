@@ -67,37 +67,55 @@ This repository follows a consistent pipeline:
 ## Repository Structure
 
 ```
+├── course_notes/
+│   ├── 01/
+│   │   ├── data/
+│   │   ├── img/
+│   │   ├── notebooks/
+│   │   ├── notes/
+│   │   └── outputs/
+│   ├── 02/
+│   │   ├── data/
+│   │   ├── notebooks/
+│   │   ├── notes/
+│   │   └── outputs/
+│   └── project_context.md
+│
 ├── data/
 │   ├── raw/
 │   ├── interim/
 │   ├── processed/
 │   └── features/
 │
-├── docs/
-│
 ├── env/
 │
 ├── reports/
 │
 ├── src/
-│   ├── 01/
-│   │   ├── data/
-│   │   ├── notebooks/
-│   │   └── outputs/
-│   │
-│   ├── 02/
-│   │   ├── data/
-│   │   ├── notebooks/
-│   │   └── outputs/
-│   │
-│   ├── 03/
-│   │   ├── data/
-│   │   ├── notebooks/
-│   │   └── outputs/
-│   │
-│   └── utils/
+│   ├── __init__.py
+│   ├── asset_allocation/
+│   │   ├── PortfolioElementaryAnalysis.py
+│   │   ├── PortfolioElementaryMetrics.py
+│   │   ├── PortfolioOptimization.py
+│   │   ├── PortfolioOptimizationPostModern.py
+│   │   ├── PortfolioPostModernMetrics.py
+│   │   └── __init__.py
+│   ├── managment_risk/
+│   │   └── __init__.py
+│   ├── portfolio_utils/
+│   │   ├── PdfImageConverter.py
+│   │   └── __init__.py
+│   └── security_selection/
+│       ├── AssetsResearch.py
+│       ├── CorrelationPortfolioSelector.py
+│       └── __init__.py
+│
+├── test/
+│   ├── conftest.py
+│   └── portfolio_utils/
+│       ├── test_assets_research.py
+│       └── test_portfolio_post_modern_metrics.py
 │
 ├── LICENSE
 └── README.md
 ```
-
