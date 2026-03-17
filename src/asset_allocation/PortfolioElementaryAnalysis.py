@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
+import sys
+from pathlib import Path
 from typing import Iterable, Optional
 
 import numpy as np
 import pandas as pd
 
-try:
-    from .AssetsResearch import AssetsResearch
-    from .PortfolioElementaryMetrics import PortfolioElementaryMetrics
-except ImportError:
-    from AssetsResearch import AssetsResearch
+if __package__ in {None, ""}:
+    SRC_ROOT = Path(__file__).resolve().parents[1]
+    if str(SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(SRC_ROOT))
+    from security_selection.AssetsResearch import AssetsResearch
     from PortfolioElementaryMetrics import PortfolioElementaryMetrics
+else:
+    try:
+        from ..security_selection.AssetsResearch import AssetsResearch
+    except ImportError:
+        from security_selection.AssetsResearch import AssetsResearch
+    from .PortfolioElementaryMetrics import PortfolioElementaryMetrics
 
 
 @dataclass
