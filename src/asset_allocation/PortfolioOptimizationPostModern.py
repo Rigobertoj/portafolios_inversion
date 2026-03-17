@@ -39,9 +39,6 @@ class PortfolioOptimizationPostMordern(PortfolioPostModernMetrics):
     def __eq__(self, value):
         pass
 
-
-    def 
-
 def _main_():
     return
 
