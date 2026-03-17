@@ -8,20 +8,37 @@ import pandas as pd
 
 from scipy.optimize import minimize
 
-try:
-    from .PortfolioElementaryAnalysis import PortfolioElementaryAnalysis
-except ImportError:
-    from PortfolioElementaryAnalysis import PortfolioElementaryAnalysis
+if __package__ in {None, ""}:
+    from PortfolioElementaryMetrics import PortfolioElementaryMetrics
+else:
+    from .PortfolioElementaryMetrics import PortfolioElementaryMetrics
 
 
 @dataclass
 class OptimizationConfig:
-    objective: str = "max_sharpe"
-    expected_return_model: str = "historical"
+    """
+    Common configuration shared by the portfolio optimization routines.
+
+    Parameters
+    ----------
+    risk_free_rate : float, default 0.0
+        Risk-free rate used to report the Sharpe ratio and optimize the
+        maximum-Sharpe portfolio.
+    allow_short : bool, default False
+        Allow negative weights when custom bounds are not provided.
+    bounds : Sequence[tuple[float, float]] | None, default None
+        Optional bounds per asset. When omitted, defaults to `[0, 1]` or
+        `[-1, 1]` depending on `allow_short`.
+    initial_weights : Iterable[float] | None, default None
+        Feasible initial point for the numerical solver. When omitted, the
+        instance portfolio weights are used.
+    solver_method : str, default "SLSQP"
+        SciPy solver method used by `scipy.optimize.minimize`.
+    solver_options : dict[str, object]
+        Additional keyword options passed to the solver.
+    """
+
     risk_free_rate: float = 0.0
-    market_expected_return: Optional[float] = None
-    target_return: Optional[float] = None
-    annualize_covariance: bool = True
     allow_short: bool = False
     bounds: Optional[Sequence[Tuple[float, float]]] = None
     initial_weights: Optional[Iterable[float]] = None
@@ -36,6 +53,21 @@ class OptimizationConfig:
 
 
 @dataclass
+class MinimumVarianceConfig(OptimizationConfig):
+    """
+    Configuration used by the minimum-variance optimization routine.
+
+    Parameters
+    ----------
+    minimum_return : float | None, default None
+        Optional lower bound for the annualized portfolio return. When omitted,
+        the optimization only minimizes portfolio variance.
+    """
+
+    minimum_return: Optional[float] = None
+
+
+@dataclass
 class OptimizationResult:
     objective: str
     success: bool
@@ -44,54 +76,25 @@ class OptimizationResult:
     weights: np.ndarray
     weights_by_ticker: pd.Series
     expected_return: float
+    variance: float
     volatility: float
     sharpe: float
     objective_value: float
     iterations: int
 
 
-class PortfolioOptimization(PortfolioElementaryAnalysis):
-    def _assets_order(self) -> list[str]:
-        return self.get_returns().columns.tolist()
-
-    def _expected_returns_vector(self, config: OptimizationConfig) -> np.ndarray:
-        asset_order = self._assets_order()
-        if config.expected_return_model == "historical":
-            expected_returns = self.annual_return(asset_order)
-        elif config.expected_return_model == "capm_assets":
-            expected_returns = self.assets_capm_expected_return(
-                risk_free_rate=config.risk_free_rate,
-                market_expected_return=config.market_expected_return,
-            )
-        else:
-            raise ValueError(
-                "expected_return_model must be 'historical' or 'capm_assets'."
-            )
-        return expected_returns.loc[asset_order].to_numpy(dtype=float)
-
-    def _covariance_matrix(self, config: OptimizationConfig) -> np.ndarray:
-        asset_order = self._assets_order()
-        covariance_matrix = self.covariance(asset_order).loc[asset_order, asset_order]
-        covariance_values = covariance_matrix.to_numpy(dtype=float)
-        if config.annualize_covariance:
-            covariance_values = covariance_values * 252.0
-        return covariance_values
+class PortfolioOptimization(PortfolioElementaryMetrics):
+    """Optimize portfolio weights using mean-variance criteria."""
 
     @staticmethod
-    def _portfolio_return(weights: np.ndarray, expected_returns: np.ndarray) -> float:
-        return float(weights @ expected_returns)
-
-    @staticmethod
-    def _portfolio_volatility(weights: np.ndarray, covariance_matrix: np.ndarray) -> float:
-        variance = float(weights.T @ covariance_matrix @ weights)
-        variance = max(variance, 0.0)
-        return float(np.sqrt(variance))
-
-    @staticmethod
-    def _min_variance_objective(
-        weights: np.ndarray, covariance_matrix: np.ndarray
+    def _minimum_variance_objective(
+        weights: np.ndarray,
+        covariance_matrix: np.ndarray,
     ) -> float:
-        return float(weights.T @ covariance_matrix @ weights)
+        return PortfolioElementaryMetrics._portfolio_variance_from_inputs(
+            weights,
+            covariance_matrix,
+        )
 
     @classmethod
     def _negative_sharpe_objective(
@@ -101,11 +104,11 @@ class PortfolioOptimization(PortfolioElementaryAnalysis):
         covariance_matrix: np.ndarray,
         risk_free_rate: float,
     ) -> float:
-        portfolio_volatility = cls._portfolio_volatility(weights, covariance_matrix)
-        if np.isclose(portfolio_volatility, 0.0):
+        volatility = cls._portfolio_volatility_from_inputs(weights, covariance_matrix)
+        if np.isclose(volatility, 0.0):
             return float("inf")
-        portfolio_return = cls._portfolio_return(weights, expected_returns)
-        sharpe_ratio = (portfolio_return - risk_free_rate) / portfolio_volatility
+        expected_return = cls._portfolio_return_from_inputs(weights, expected_returns)
+        sharpe_ratio = (expected_return - risk_free_rate) / volatility
         return float(-sharpe_ratio)
 
     def _resolve_bounds(
@@ -116,139 +119,202 @@ class PortfolioOptimization(PortfolioElementaryAnalysis):
         if config.bounds is not None:
             if len(config.bounds) != n_assets:
                 raise ValueError("bounds length must match number of assets.")
-            return config.bounds
+            return [tuple(bound) for bound in config.bounds]
+
         if config.allow_short:
             return [(-1.0, 1.0)] * n_assets
+
         return [(0.0, 1.0)] * n_assets
 
     def _resolve_initial_weights(
         self,
         config: OptimizationConfig,
-        n_assets: int,
+        bounds: Sequence[Tuple[float, float]],
     ) -> np.ndarray:
         if config.initial_weights is None:
-            return np.ones(n_assets, dtype=float) / n_assets
-        initial_weights = np.asarray(config.initial_weights, dtype=float).reshape(-1)
-        if len(initial_weights) != n_assets:
-            raise ValueError("initial_weights length must match number of assets.")
-        if not np.isclose(initial_weights.sum(), 1.0):
-            raise ValueError("initial_weights must sum 1.")
+            initial_weights = self.weight
+        else:
+            initial_weights = self._validate_weight(config.initial_weights)
+
+        for weight, (lower, upper) in zip(initial_weights, bounds):
+            if weight < lower or weight > upper:
+                raise ValueError("initial_weights must satisfy the configured bounds.")
+
         return initial_weights
 
-    def optimize(self, config: Optional[OptimizationConfig] = None) -> OptimizationResult:
-        if config is None:
-            config = OptimizationConfig()
+    @staticmethod
+    def _sum_weights_constraint() -> dict[str, object]:
+        return {"type": "eq", "fun": lambda weights: np.sum(weights) - 1.0}
 
-        expected_returns = self._expected_returns_vector(config)
-        covariance_matrix = self._covariance_matrix(config)
-        tickers = self._assets_order()
-        n_assets = len(tickers)
-
-        initial_weights = self._resolve_initial_weights(config, n_assets)
-        bounds = self._resolve_bounds(config, n_assets)
-
-        constraints = [{"type": "eq", "fun": lambda w: np.sum(w) - 1.0}]
-
-        if config.objective == "min_variance":
-            def objective_function(w, cov=covariance_matrix):
-                return (self._min_variance_objective(w, cov))
-        elif config.objective == "max_sharpe":
-            def objective_function(w, mu=expected_returns, cov=covariance_matrix, rf=config.risk_free_rate):
-                return (self._negative_sharpe_objective(
-                                w, mu, cov, rf
-                            ))
-        elif config.objective == "target_return":
-            if config.target_return is None:
-                raise ValueError(
-                    "target_return must be provided when objective='target_return'."
-                )
-            constraints.append(
-                {
-                    "type": "eq",
-                    "fun": lambda w, mu=expected_returns, target=config.target_return: (
-                        w @ mu
-                    )
-                    - target,
-                }
+    @staticmethod
+    def _minimum_return_constraint(
+        expected_returns: np.ndarray,
+        minimum_return: float,
+    ) -> dict[str, object]:
+        return {
+            "type": "ineq",
+            "fun": lambda weights, mu=expected_returns, target=minimum_return: (
+                weights @ mu
             )
-            def objective_function(w, cov=covariance_matrix):
-                return (self._min_variance_objective(w, cov))
-        else:
-            raise ValueError(
-                "objective must be 'min_variance', 'max_sharpe', or 'target_return'."
-            )
+            - target,
+        }
 
-        solution = minimize(
+    def _solve(
+        self,
+        *,
+        objective_function,
+        config: OptimizationConfig,
+        constraints: Sequence[dict[str, object]],
+        bounds: Sequence[Tuple[float, float]],
+    ):
+        initial_weights = self._resolve_initial_weights(config, bounds)
+        return minimize(
             fun=objective_function,
             x0=initial_weights,
             method=config.solver_method,
             bounds=bounds,
-            constraints=constraints,
+            constraints=list(constraints),
             options=config.solver_options,
         )
 
+    def _build_result(
+        self,
+        *,
+        objective: str,
+        solution,
+        expected_returns: np.ndarray,
+        covariance_matrix: np.ndarray,
+        risk_free_rate: float,
+    ) -> OptimizationResult:
         optimal_weights = np.asarray(solution.x, dtype=float)
-        portfolio_return = self._portfolio_return(optimal_weights, expected_returns)
-        portfolio_volatility = self._portfolio_volatility(
-            optimal_weights, covariance_matrix
+        portfolio_return = self._portfolio_return_from_inputs(
+            optimal_weights,
+            expected_returns,
+        )
+        portfolio_variance = max(
+            self._portfolio_variance_from_inputs(optimal_weights, covariance_matrix),
+            0.0,
+        )
+        portfolio_volatility = self._portfolio_volatility_from_inputs(
+            optimal_weights,
+            covariance_matrix,
         )
 
         if np.isclose(portfolio_volatility, 0.0):
             portfolio_sharpe = float("nan")
         else:
             portfolio_sharpe = float(
-                (portfolio_return - config.risk_free_rate) / portfolio_volatility
+                (portfolio_return - risk_free_rate) / portfolio_volatility
             )
 
-        objective_value = float(objective_function(optimal_weights))
-        weights_by_ticker = pd.Series(optimal_weights, index=tickers, name="weight")
+        objective_value = (
+            portfolio_variance
+            if objective == "minimum_variance"
+            else portfolio_sharpe
+        )
 
-        iterations = int(getattr(solution, "nit", 0))
+        weights_by_ticker = pd.Series(
+            optimal_weights,
+            index=self._assets_order(),
+            name="weight",
+        )
 
         return OptimizationResult(
-            objective=config.objective,
+            objective=objective,
             success=bool(solution.success),
             status=int(solution.status),
             message=str(solution.message),
             weights=optimal_weights,
             weights_by_ticker=weights_by_ticker,
             expected_return=float(portfolio_return),
+            variance=float(portfolio_variance),
             volatility=float(portfolio_volatility),
             sharpe=float(portfolio_sharpe),
-            objective_value=objective_value,
-            iterations=iterations,
+            objective_value=float(objective_value),
+            iterations=int(getattr(solution, "nit", 0)),
         )
 
-    def optimize_and_set_weights(
-        self, config: Optional[OptimizationConfig] = None
+    def optimize_minimum_variance(
+        self,
+        config: Optional[MinimumVarianceConfig] = None,
     ) -> OptimizationResult:
-        result = self.optimize(config=config)
-        if not result.success:
-            raise ValueError(f"Optimization failed: {result.message}")
-        self.weight = result.weights
-        return result
+        """
+        Minimize the annualized portfolio variance.
 
-def _main_():
-    tickets = ["BOH", "AAPL", "JPM"]
-    start_date = "2025-01-01"
-    end_date = "2026-02-20"
-    
-    weight = np.ones(len(tickets)) / len(tickets)
-    
-    benchmark = "^GSPC"
-    
-    opt = PortfolioOptimization(
-        tickers=tickets,
-        start=start_date,
-        weight=weight,
-        benchmark=benchmark
-    )
-    
-    opt
-    
-    cfg = OptimizationConfig()
-    cfg
-    return
+        When `minimum_return` is provided, the routine also enforces
+        `portfolio_return >= minimum_return`.
+        """
+        if config is None:
+            config = MinimumVarianceConfig()
+
+        covariance_matrix = self._annual_covariance_matrix()
+        bounds = self._resolve_bounds(config, len(self._assets_order()))
+        constraints = [self._sum_weights_constraint()]
+        expected_returns = self._annual_returns_vector()
+
+        if config.minimum_return is not None:
+            constraints.append(
+                self._minimum_return_constraint(
+                    expected_returns,
+                    float(config.minimum_return),
+                )
+            )
+
+        def objective_function(
+            weights: np.ndarray,
+            cov: np.ndarray = covariance_matrix,
+        ) -> float:
+            return self._minimum_variance_objective(weights, cov)
+
+        solution = self._solve(
+            objective_function=objective_function,
+            config=config,
+            constraints=constraints,
+            bounds=bounds,
+        )
+
+        return self._build_result(
+            objective="minimum_variance",
+            solution=solution,
+            expected_returns=expected_returns,
+            covariance_matrix=covariance_matrix,
+            risk_free_rate=config.risk_free_rate,
+        )
+
+    def optimize_maximum_sharpe(
+        self,
+        config: Optional[OptimizationConfig] = None,
+    ) -> OptimizationResult:
+        """Maximize the annualized Sharpe ratio of the portfolio."""
+        if config is None:
+            config = OptimizationConfig()
+
+        expected_returns = self._annual_returns_vector()
+        covariance_matrix = self._annual_covariance_matrix()
+        bounds = self._resolve_bounds(config, len(self._assets_order()))
+
+        def objective_function(
+            weights: np.ndarray,
+            mu: np.ndarray = expected_returns,
+            cov: np.ndarray = covariance_matrix,
+            risk_free_rate: float = config.risk_free_rate,
+        ) -> float:
+            return self._negative_sharpe_objective(weights, mu, cov, risk_free_rate)
+
+        solution = self._solve(
+            objective_function=objective_function,
+            config=config,
+            constraints=[self._sum_weights_constraint()],
+            bounds=bounds,
+        )
+
+        return self._build_result(
+            objective="maximum_sharpe",
+            solution=solution,
+            expected_returns=expected_returns,
+            covariance_matrix=covariance_matrix,
+            risk_free_rate=config.risk_free_rate,
+        )
 
 
 if __name__ == "__main__":

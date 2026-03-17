@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
+import sys
+from pathlib import Path
 from typing import Iterable, Optional
 
 import numpy as np
 import pandas as pd
 
-try:
-    from .AssetsResearch import AssetsResearch
-except ImportError:
-    from AssetsResearch import AssetsResearch
-
+if __package__ in {None, ""}:
+    SRC_ROOT = Path(__file__).resolve().parents[1]
+    
+    if str(SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(SRC_ROOT))
+        
+    from security_selection.AssetsResearch import AssetsResearch
+else:
+    try:
+        from ..security_selection.AssetsResearch import AssetsResearch
+    except ImportError:
+        from security_selection.AssetsResearch import AssetsResearch
 
 @dataclass
 class PortfolioElementaryMetrics(AssetsResearch):
@@ -48,6 +57,8 @@ class PortfolioElementaryMetrics(AssetsResearch):
         Compute the historical wealth path of the weighted portfolio.
     portfolio_annual_return()
         Compute the annualized portfolio return.
+    portfolio_variance()
+        Compute the portfolio variance from the covariance matrix.
     portfolio_annual_volatility()
         Compute the annualized portfolio volatility.
     portfolio_variance_coeficience()
@@ -112,14 +123,7 @@ class PortfolioElementaryMetrics(AssetsResearch):
         return self.__weight.copy()
 
     def _set_weight(self, value: Iterable[float]) -> None:
-        vector = self._normalize_weight(value)
-        if vector.ndim != 1:
-            raise ValueError("weight must be a 1D iterable.")
-        if len(vector) != len(self.tickers):
-            raise ValueError("weight length must match tickers length.")
-        if not np.isclose(vector.sum(), 1.0):
-            raise ValueError("the sum of weight must be equal to 1.")
-        self.__weight = vector
+        self.__weight = self._validate_weight(value)
 
     @staticmethod
     def _normalize_weight(weight: Iterable[float]) -> np.ndarray:
@@ -128,10 +132,74 @@ class PortfolioElementaryMetrics(AssetsResearch):
         if vector.ndim == 0:
             return vector.reshape(1)
         return vector
-    
-    def portfolio_path(self) -> pd.Series:
+
+    def _validate_weight(self, weight: Iterable[float]) -> np.ndarray:
+        """Validate that a weight vector is one-dimensional and sums to one."""
+        vector = self._normalize_weight(weight)
+        if vector.ndim != 1:
+            raise ValueError("weight must be a 1D iterable.")
+        if len(vector) != len(self.tickers):
+            raise ValueError("weight length must match tickers length.")
+        if not np.isclose(vector.sum(), 1.0):
+            raise ValueError("the sum of weight must be equal to 1.")
+        return vector
+
+    def _resolve_weight(self, weight: Optional[Iterable[float]] = None) -> np.ndarray:
+        """Return a validated weight vector, defaulting to the instance weights."""
+        if weight is None:
+            return self.weight
+        return self._validate_weight(weight)
+
+    def _assets_order(self) -> list[str]:
+        """Return the canonical asset order used by portfolio calculations."""
+        return list(self.tickers)
+
+    def _annual_returns_vector(self) -> np.ndarray:
+        """Return annualized asset returns aligned with the portfolio weights."""
+        asset_order = self._assets_order()
+        annual_returns = self.annual_return(asset_order).loc[asset_order]
+        return annual_returns.to_numpy(dtype=float)
+
+    def _annual_covariance_matrix(self) -> np.ndarray:
+        """Return the annualized covariance matrix aligned with the weights."""
+        asset_order = self._assets_order()
+        covariance_matrix = self.covariance(asset_order).loc[asset_order, asset_order]
+        return covariance_matrix.to_numpy(dtype=float) * 252.0
+
+    @staticmethod
+    def _portfolio_return_from_inputs(
+        weight: np.ndarray,
+        expected_returns: np.ndarray,
+    ) -> float:
+        """Compute portfolio expected return from weights and asset returns."""
+        return float(weight @ expected_returns)
+
+    @staticmethod
+    def _portfolio_variance_from_inputs(
+        weight: np.ndarray,
+        covariance_matrix: np.ndarray,
+    ) -> float:
+        """Compute portfolio variance from weights and covariance matrix."""
+        return float(weight.T @ covariance_matrix @ weight)
+
+    @classmethod
+    def _portfolio_volatility_from_inputs(
+        cls,
+        weight: np.ndarray,
+        covariance_matrix: np.ndarray,
+    ) -> float:
+        """Compute portfolio volatility from weights and covariance matrix."""
+        variance = max(cls._portfolio_variance_from_inputs(weight, covariance_matrix), 0.0)
+        return float(np.sqrt(variance))
+
+    def portfolio_path(self, weight: Optional[Iterable[float]] = None) -> pd.Series:
         """
         Compute the historical wealth path of the weighted portfolio.
+
+        Parameters
+        ----------
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
 
         Returns
         -------
@@ -139,39 +207,81 @@ class PortfolioElementaryMetrics(AssetsResearch):
             Time series obtained by multiplying asset prices by the portfolio
             weight vector at each date.
         """
-        assets_prices = self.get_prices()
-        portfolio_wealth_path = assets_prices @ self.__weight 
+        vector = self._resolve_weight(weight)
+        asset_order = self._assets_order()
+        assets_prices = self.get_prices(asset_order)
+        portfolio_wealth_path = assets_prices @ vector
         return portfolio_wealth_path
 
-    def portfolio_annual_return(self) -> float:
+    def portfolio_annual_return(self, weight: Optional[Iterable[float]] = None) -> float:
         """
         Compute the annualized expected return of the portfolio.
+
+        Parameters
+        ----------
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
 
         Returns
         -------
         float
             Weighted average of the assets' annualized returns.
         """
-        assets_returns = self.annual_return().to_numpy(dtype=float)
-        return float(self.weight @ assets_returns)
+        vector = self._resolve_weight(weight)
+        assets_returns = self._annual_returns_vector()
+        return self._portfolio_return_from_inputs(vector, assets_returns)
 
-    def portfolio_annual_volatility(self) -> float:
+    def portfolio_variance(self, weight: Optional[Iterable[float]] = None) -> float:
+        """
+        Compute the annualized variance of the portfolio.
+
+        Parameters
+        ----------
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
+
+        Returns
+        -------
+        float
+            Annualized portfolio variance.
+        """
+        vector = self._resolve_weight(weight)
+        assets_cov = self._annual_covariance_matrix()
+        variance = self._portfolio_variance_from_inputs(vector, assets_cov)
+        return max(variance, 0.0)
+
+    def portfolio_annual_volatility(
+        self,
+        weight: Optional[Iterable[float]] = None,
+    ) -> float:
         """
         Compute the annualized volatility of the portfolio.
+
+        Parameters
+        ----------
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
 
         Returns
         -------
         float
             Portfolio standard deviation annualized using 252 trading days.
         """
-        assets_cov = self.covariance().to_numpy(dtype=float)
-        portfolio_variance = float(self.weight.T @ assets_cov @ self.weight)
-        portfolio_annual_variance = portfolio_variance * 252
-        return float(np.sqrt(portfolio_annual_variance))
+        vector = self._resolve_weight(weight)
+        assets_cov = self._annual_covariance_matrix()
+        return self._portfolio_volatility_from_inputs(vector, assets_cov)
 
-    def portfolio_variance_coeficience(self) -> float:
+    def portfolio_variance_coeficience(
+        self,
+        weight: Optional[Iterable[float]] = None,
+    ) -> float:
         """
         Compute the volatility-to-return coefficient of the portfolio.
+
+        Parameters
+        ----------
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
 
         Returns
         -------
@@ -184,13 +294,17 @@ class PortfolioElementaryMetrics(AssetsResearch):
         ValueError
             If the annualized portfolio return is zero.
         """
-        portfolio_return = self.portfolio_annual_return()
-        portfolio_volatility = self.portfolio_annual_volatility()
+        portfolio_return = self.portfolio_annual_return(weight=weight)
+        portfolio_volatility = self.portfolio_annual_volatility(weight=weight)
         if np.isclose(portfolio_return, 0.0):
             raise ValueError("portfolio annual return is zero, coefficient is undefined.")
         return float(portfolio_volatility / portfolio_return)
-    
-    def portfolio_sharpe_ratio(self, free_rate : float) -> float:
+
+    def portfolio_sharpe_ratio(
+        self,
+        free_rate: float,
+        weight: Optional[Iterable[float]] = None,
+    ) -> float:
         """
         Compute the Sharpe ratio of the portfolio.
 
@@ -198,6 +312,8 @@ class PortfolioElementaryMetrics(AssetsResearch):
         ----------
         free_rate : float
             Risk-free rate used as the benchmark return.
+        weight : Iterable[float] | None, default None
+            Optional weight vector used instead of the instance weights.
 
         Returns
         -------
@@ -210,11 +326,11 @@ class PortfolioElementaryMetrics(AssetsResearch):
         ValueError
             If the annualized portfolio volatility is zero.
         """
-        portfolio_return = self.portfolio_annual_return()
-        portfolio_volatility = self.portfolio_annual_volatility()
+        portfolio_return = self.portfolio_annual_return(weight=weight)
+        portfolio_volatility = self.portfolio_annual_volatility(weight=weight)
         if np.isclose(portfolio_volatility, 0.0):
             raise ValueError("portfolio annual volatility is zero, coefficient is undefined")
-        sharpe_ratio = (portfolio_return - free_rate)/portfolio_volatility        
+        sharpe_ratio = (portfolio_return - free_rate) / portfolio_volatility
         return float(sharpe_ratio)
 
 
@@ -223,32 +339,5 @@ PortfolioElementaryMetrics.weight = property(
     PortfolioElementaryMetrics._set_weight,
     doc="Portfolio weight vector aligned with the order of `tickers`.",
 )
-
-
-def _main_():
-    tickets = ["BOH", "AAPL", "JPM"]
-    start_date = "2018-01-01"
-    end_date = "2026-02-20"
-
-    weight = np.ones(len(tickets)) / len(tickets)
-
-    Portfolio1 = PortfolioElementaryMetrics(
-        tickers=tickets,
-        start=start_date,
-        end=end_date,
-        weight=weight
-    )
-    
-    #print(Portfolio1.portfolio_annual_return())
-    #print(Portfolio1.annual_return())
-    #print(Portfolio1.portfolio_annual_volatility())
-    print(Portfolio1.portfolio_path())
-    print(Portfolio1.get_prices())
-
-    print(Portfolio1.correlation())
-    
-    return
-
-
 if __name__ == "__main__":
-    _main_()
+    pass
