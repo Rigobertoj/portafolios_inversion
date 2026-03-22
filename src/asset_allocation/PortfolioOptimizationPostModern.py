@@ -199,6 +199,11 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
             name="weight",
         )
 
+        if solution.success:
+            # Persist the successful optimum so subsequent portfolio methods
+            # use the optimized allocation by default.
+            self.weight = optimal_weights
+
         return PostModernOptimizationResult(
             objective=objective,
             success=bool(solution.success),
@@ -223,6 +228,8 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
 
         When `minimum_return` is provided, the routine also enforces
         `portfolio_return >= minimum_return`.
+        On successful optimization, `self.weight` is updated to the
+        optimized allocation.
         """
         if config is None:
             config = MinimumSemivarianceConfig()
@@ -264,7 +271,12 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
         self,
         config: Optional[MaximumOmegaConfig] = None,
     ) -> PostModernOptimizationResult:
-        """Maximize the portfolio Omega ratio."""
+        """
+        Maximize the portfolio Omega ratio.
+
+        On successful optimization, `self.weight` is updated to the
+        optimized allocation.
+        """
         if config is None:
             config = MaximumOmegaConfig()
 

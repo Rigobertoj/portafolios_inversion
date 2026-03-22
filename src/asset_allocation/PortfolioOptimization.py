@@ -219,6 +219,11 @@ class PortfolioOptimization(PortfolioElementaryMetrics):
             name="weight",
         )
 
+        if solution.success:
+            # Persist the successful optimum so subsequent portfolio methods
+            # use the optimized allocation by default.
+            self.weight = optimal_weights
+
         return OptimizationResult(
             objective=objective,
             success=bool(solution.success),
@@ -243,6 +248,8 @@ class PortfolioOptimization(PortfolioElementaryMetrics):
 
         When `minimum_return` is provided, the routine also enforces
         `portfolio_return >= minimum_return`.
+        On successful optimization, `self.weight` is updated to the
+        optimized allocation.
         """
         if config is None:
             config = MinimumVarianceConfig()
@@ -285,7 +292,12 @@ class PortfolioOptimization(PortfolioElementaryMetrics):
         self,
         config: Optional[OptimizationConfig] = None,
     ) -> OptimizationResult:
-        """Maximize the annualized Sharpe ratio of the portfolio."""
+        """
+        Maximize the annualized Sharpe ratio of the portfolio.
+
+        On successful optimization, `self.weight` is updated to the
+        optimized allocation.
+        """
         if config is None:
             config = OptimizationConfig()
 
