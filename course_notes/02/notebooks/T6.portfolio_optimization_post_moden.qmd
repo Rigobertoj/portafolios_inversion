@@ -1,0 +1,355 @@
+---
+title: "Teoria Post Moderna de Portafolios"
+subtitle: "Tarea 6"
+author:   
+    - name: "Rigoberto J. Martinez Madriz"
+    - name: "Valeria Esmer"
+date: "2025-03-13"
+format:
+  html:
+    html-math-method: mathml
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import yfinance as yf
+
+from scipy.optimize import minimize
+```
+
+```{python}
+from dotenv import load_dotenv
+from pathlib import Path
+import os
+import sys
+
+load_dotenv()
+
+PROJECT_ROOT = Path(os.environ["PORTFOLIO_ROOT"]).resolve()
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+```
+
+```{python}
+from src.asset_allocation import PortfolioOptimization
+from src.asset_allocation import MinimumVarianceConfig
+```
+
+## A) Implementación de funciones
+
+Punto a) Implementen tres funciones que optimicen portafolios utilizando: mínima semivarianza, ratio omega y semivarianza objetivo, empleando la función `scipy.optimize.minimize`. (40%)
+
+```{python}
+# function aux
+OPTIMIZATION_TOL = 1e-50
+
+def portfolio_var(weight : np.ndarray, cov_matrix):
+    return weight.T @ cov_matrix @ weight
+
+def weight_sum(weight : np.ndarray):
+    assets = len(weight)
+    return weight @ np.ones(assets) - 1
+
+def _asset_returns(prices : pd.DataFrame) -> pd.DataFrame:
+    return prices.pct_change().dropna()
+
+def _initial_weight(n_assets : int) -> np.ndarray:
+    return np.ones(n_assets) / n_assets
+
+def _weight_bounds(n_assets : int):
+    return [(0, 1)] * n_assets
+
+def _optimize_weights(objective, n_assets : int) -> np.ndarray:
+    opt = minimize(
+        fun=objective,
+        x0=_initial_weight(n_assets),
+        bounds=_weight_bounds(n_assets),
+        constraints={"fun": weight_sum, "type": "eq"},
+        tol=OPTIMIZATION_TOL
+    )
+    print(opt)
+    return opt.x
+
+def _build_semivariance_matrix(
+    downside_risk : np.ndarray,
+    corr : pd.DataFrame,
+    n_assets : int,
+):
+    return downside_risk.reshape(n_assets, 1) @ downside_risk.reshape(1, n_assets) * corr
+
+```
+
+### Funciones de optimización
+
+```{python}
+def min_semivar(prices : pd.DataFrame, umbral : float = 0) -> np.ndarray:
+    returns = _asset_returns(prices)
+    n_assets = len(returns.columns)
+    corr = returns.corr()
+
+    below_threshold = returns[returns < umbral].fillna(0)
+    downside_risk = np.array(below_threshold.std())
+    semivar_matrix = _build_semivariance_matrix(downside_risk, corr, n_assets)
+
+    return _optimize_weights(
+        objective=lambda weight: portfolio_var(weight, semivar_matrix),
+        n_assets=n_assets,
+    )
+
+
+def ratio_omega(prices : pd.DataFrame, umbral : float = 0) -> np.ndarray:
+    returns = _asset_returns(prices)
+    n_assets = len(returns.columns)
+
+    below_threshold = returns[returns < umbral].fillna(0)
+    above_threshold = returns[returns > umbral].fillna(0)
+
+    downside_risk = np.array(below_threshold.std())
+    upside_risk = np.array(above_threshold.std())
+    omega = upside_risk / downside_risk
+
+    return _optimize_weights(
+        objective=lambda weight: (-1) * (omega @ weight),
+        n_assets=n_assets,
+    )
+
+
+def _target_diff_against_benchmark(
+    returns_assets: pd.DataFrame,
+    benchmark: pd.DataFrame,
+) -> pd.DataFrame:
+    returns_benchmark = _asset_returns(benchmark)
+
+    if isinstance(returns_benchmark, pd.DataFrame):
+        if returns_benchmark.shape[1] != 1:
+            raise ValueError("benchmark debe contener una sola serie de precios.")
+        benchmark_series = returns_benchmark.iloc[:, 0]
+    else:
+        benchmark_series = returns_benchmark
+
+    aligned_assets, aligned_benchmark = returns_assets.align(
+        benchmark_series.rename("benchmark"),
+        join="inner",
+        axis=0,
+    )
+    if aligned_assets.empty:
+        raise ValueError("No hay fechas en comun entre los activos y el benchmark.")
+
+    return aligned_assets.sub(aligned_benchmark, axis=0)
+
+
+def target_semivar(prices : pd.DataFrame, benchmark : pd.DataFrame = None, umbral : float = 0):
+    returns_assets = _asset_returns(prices)
+    n_assets = len(returns_assets.columns)
+
+    if umbral != 0 and type(umbral) is float:
+        diff = returns_assets - umbral
+        corr = returns_assets.corr()
+    elif benchmark is not None:
+        diff = _target_diff_against_benchmark(returns_assets, benchmark)
+        corr = returns_assets.loc[diff.index].corr()
+    else:
+        return None
+
+    below_target = diff[diff < 0].fillna(0)
+    target_downside = np.array(below_target.std())
+    target_semivar_matrix = _build_semivariance_matrix(target_downside, corr, n_assets)
+
+    return _optimize_weights(
+        objective=lambda weight: portfolio_var(weight, target_semivar_matrix),
+        n_assets=n_assets,
+    )
+```
+
+## B) Construccion del portafolio
+
+Punto b) Construyan un portafolio compuesto por 5 activos financieros (SOLO EQUITIES O ETFS DE EQUITIES ) y optimícenlo con los tres métodos. Utilicen las funciones desarrolladas en el punto a) para realizar la optimización. Recuerden que, para el portafolio con semivarianza objetivo, deberán seleccionar un benchmark adecuado y consistente con los activos elegidos. 
+
+Como respuesta a este punto, se esperan las ponderaciones eficientes y el valor óptimo de la función objetivo para cada método de Asset Allocation. (40%)
+
+```{python}
+start_date = "2010-01-01"
+end_date = "2026-01-01"
+```
+
+```{python}
+# Descarga de Datos
+tickets = ['PSQ', 'QLD', 'QID', 'SOXL', 'SOXS']
+prices=yf.download(tickets, start=start_date, end=end_date, progress=False)['Close']
+prices.dropna(inplace=True)
+```
+
+### Minima semivarianza
+
+Este metodo
+
+```{python}
+returns = prices.pct_change().dropna()
+n_assets = len(returns.columns)
+corr = returns.corr()
+
+umbral = 0 
+below_threshold = returns[returns < umbral].fillna(0)
+downside_risk = np.array(below_threshold.std())
+
+downside_risk
+```
+
+```{python}
+result_min_semivar = min_semivar(prices)
+```
+
+```{python}
+# Pesos optimos del portafolio en semivarianza
+result_min_semivar
+```
+
+```{python}
+dict(zip(prices.columns, result_min_semivar))
+```
+
+#### Valor de la función objetivo
+
+**Semivarianza global del portafolio**
+
+```{python}
+semivarianza_matrix = downside_risk.reshape(n_assets, 1) @ downside_risk.reshape(1, n_assets) * corr
+
+semivaranza_portfolio = result_min_semivar.T @ semivarianza_matrix @ result_min_semivar
+semivaranza_portfolio
+```
+
+```{python}
+print(f"{semivaranza_portfolio:.22f}")
+```
+
+### Ratio omega
+
+```{python}
+returns = _asset_returns(prices)
+n_assets = len(returns.columns)
+
+below_threshold = returns[returns < umbral].fillna(0)
+above_threshold = returns[returns > umbral].fillna(0)
+
+downside_risk = np.array(below_threshold.std())
+upside_risk = np.array(above_threshold.std())
+
+omega = upside_risk / downside_risk
+```
+
+```{python}
+result_omega = ratio_omega(prices)
+```
+
+```{python}
+result_omega
+```
+
+```{python}
+dict(zip(prices.columns, result_omega))
+```
+
+#### Valor de la función objetivo
+
+```{python}
+dict(zip(prices.columns, omega))
+```
+
+```{python}
+result_omega @ omega
+```
+
+### Min semivarianza target
+
+Dado que nuestro portafolio se compone de activos que siguen dos indices diferentes nuestro benchmark sera una combinación ponderada de los dos.
+
+- `PSQ`, `QLD` y `QID` buscan exposición diaria sobre el Nasdaq-100 Index
+- `SOXL` y `SOXS` buscan +3x y -3x diarios sobre el NYSE Semiconductor Index (ICESEMIT)
+
+Entonces el benchmark más adecuado sería uno que pondere a `SPY` y `QQQ` 
+
+```{python}
+benchmarks = ["SPY", "QQQ"]
+
+benchmark_price = yf.download(benchmarks, start=prices.index[0], end=end_date, progress=False)["Close"]
+```
+
+```{python}
+# wight benmarck 
+
+risk_free = 0.045
+
+initial_weight_benchmark = np.ones(len(benchmarks)) / len(benchmarks)
+
+benchmark_config_opt_min = MinimumVarianceConfig(minimum_return=0.155)
+
+benchmarks_optimization = PortfolioOptimization(
+    benchmarks, 
+    start=start_date,
+    end=end_date, 
+    weight=initial_weight_benchmark
+    )
+
+optimal_weight_benchmark_min = benchmarks_optimization.optimize_minimum_variance(config=benchmark_config_opt_min).weights
+```
+
+```{python}
+benchmark = benchmark_price @ optimal_weight_benchmark_min
+benchmark = pd.DataFrame(benchmark, columns=["benchmark"])
+benchmark.head(5)
+```
+
+```{python}
+returns_assets = _asset_returns(prices)
+n_assets = len(returns_assets.columns)
+diff = _target_diff_against_benchmark(returns_assets, benchmark)
+corr = returns_assets.loc[diff.index].corr()
+
+below_target = diff[diff < 0].fillna(0)
+target_downside = np.array(below_target.std())
+target_semivar_matrix = _build_semivariance_matrix(target_downside, corr, n_assets)
+```
+
+```{python}
+weight_target = target_semivar(prices=prices, benchmark=benchmark)
+```
+
+```{python}
+dict(zip(returns.columns, weight_target))
+```
+
+#### Valor de la función objetivo
+
+```{python}
+semivariance_portfolio_target = weight_target @ target_semivar_matrix @ weight_target
+semivariance_portfolio_target
+```
+
+```{python}
+print(f"{semivariance_portfolio_target:.22f}")
+```
+
+## C) Conclusiones ventajas y desventajas TMP y TPMP
+
+Desde mi punto de vista la elección de uno u otro appouch a la hora de construir portafolios dependen mucho del perfil del cliente a su vez que la naturaleza, tiempo y rendimiento esperado de la inversión y por su puesto de el nivel de riesgo al que se esta dispuesto de asumir para lograr dicho objetivo. Sin embargo, considero que TPMP tiene una construcción y un marco de trabajo mucho mejor elaborado, pues no se encuentra en los extremos de la optimización reduciendo drasticamente la posibilidad de obtener rendimientos extraodiordinarios derivada de la sobre ponderación que la TMP tienede a calcular, mientras que la TPMP distribuye de forma mas uniforme el capital evitando la sobreponderación derivado la optimización a traves de utilizar el downside risk (semivarianza de rendimientos negativos) en lugar de utilizar toda la varianza.
+
+Por otro lado, la TPMP nos permite utilizar un benchmark o umbral (minimo de rendimiento) como medio de optimización calculando el downside risk como la desviación estandar de las diferencias entre el rendimiento diario de cada uno de los activos menos el rendimiento del benchmark o umbral, en el sentido de que queremos optimizar los pesos del portafolio de tal manera que maximicemos la probabilidad de superen al benchmark o el umbral visto como un target establecido.
+
+Por lo anterios y evaluando ventajas y desventajas de ambas toerias, considero que TPMP con sus metodos comple mejor los objetivos del asset allocation de un portfolio manager.
