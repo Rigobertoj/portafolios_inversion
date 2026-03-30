@@ -98,6 +98,10 @@ class BacktestConfig:
     benchmark_label : str | None, default None
         Custom display name for the benchmark series. When omitted, defaults
         to `benchmark_ticker` or `"Benchmark"`.
+    reuse_optimization_window : bool, default False
+        When True, reuse the optimization window as the evaluation window.
+        This enables an in-sample evaluation mode and requires
+        `backtest_start` to match `optimization_start`.
     risk_free_rate : float, default 0.0
         Annualized risk-free rate used when computing Sharpe ratios in the
         summary table.
@@ -110,7 +114,8 @@ class BacktestConfig:
 
     - at least one ticker is provided,
     - capital and trading days are strictly positive,
-    - the backtest window starts after the optimization window, and
+    - the backtest window starts after the optimization window, unless
+      `reuse_optimization_window=True`,
     - `end`, when provided, is later than `backtest_start`.
     """
 
@@ -122,6 +127,7 @@ class BacktestConfig:
     price_field: str = "Close"
     benchmark_ticker: Optional[str] = None
     benchmark_label: Optional[str] = None
+    reuse_optimization_window: bool = False
     risk_free_rate: float = 0.0
     trading_days: int = 252
 
@@ -136,13 +142,30 @@ class BacktestConfig:
 
         optimization_start = pd.Timestamp(self.optimization_start)
         backtest_start = pd.Timestamp(self.backtest_start)
-        if backtest_start <= optimization_start:
+        if self.reuse_optimization_window:
+            if backtest_start != optimization_start:
+                raise ValueError(
+                    "backtest_start must match optimization_start when "
+                    "reuse_optimization_window is enabled."
+                )
+        elif backtest_start <= optimization_start:
             raise ValueError("backtest_start must be later than optimization_start.")
 
         if self.end is not None:
             end = pd.Timestamp(self.end)
-            if end <= backtest_start:
-                raise ValueError("end must be later than backtest_start.")
+            minimum_end = (
+                optimization_start
+                if self.reuse_optimization_window
+                else backtest_start
+            )
+            if end <= minimum_end:
+                message = (
+                    "end must be later than optimization_start when "
+                    "reuse_optimization_window is enabled."
+                    if self.reuse_optimization_window
+                    else "end must be later than backtest_start."
+                )
+                raise ValueError(message)
 
         benchmark_label = self.benchmark_label or self.benchmark_ticker or "Benchmark"
 
@@ -317,6 +340,23 @@ def _normalize_benchmark_prices(
 
     benchmark.name = label
     return benchmark
+
+
+def _slice_time_window(
+    prices: pd.DataFrame | pd.Series,
+    *,
+    start: str | pd.Timestamp,
+    end: Optional[str] = None,
+) -> pd.DataFrame | pd.Series:
+    """Return a copy restricted to the configured [start, end) window."""
+    start_timestamp = pd.Timestamp(start)
+    mask = prices.index >= start_timestamp
+
+    if end is not None:
+        end_timestamp = pd.Timestamp(end)
+        mask &= prices.index < end_timestamp
+
+    return prices.loc[mask].copy()
 
 
 def _window_bounds(prices: pd.DataFrame) -> tuple[str, str]:
@@ -583,6 +623,18 @@ class Backtester:
     def __init__(self, config: BacktestConfig) -> None:
         self.config = config
 
+    def _backtest_window_start(self) -> str:
+        """Return the first date used for the simulated evaluation window."""
+        if self.config.reuse_optimization_window:
+            return self.config.optimization_start
+        return self.config.backtest_start
+
+    def _optimization_window_end(self) -> Optional[str]:
+        """Return the exclusive end date of the optimization window."""
+        if self.config.reuse_optimization_window:
+            return self.config.end
+        return self.config.backtest_start
+
     def _load_prices(self) -> pd.DataFrame:
         """Download and return the full asset price table for the backtest."""
         research = AssetsResearch(
@@ -603,13 +655,39 @@ class Backtester:
         if missing:
             raise ValueError(f"prices is missing configured tickers: {missing}")
 
-        return normalized[self.config.tickers].copy()
+        ordered = normalized[self.config.tickers]
+        prepared = _slice_time_window(
+            ordered,
+            start=self.config.optimization_start,
+            end=self.config.end,
+        )
+        if prepared.empty:
+            raise ValueError(
+                "prices does not contain observations inside the configured window."
+            )
+        return prepared
 
     def _split_prices(self, prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Split the full price table into optimization and backtest windows."""
-        backtest_start = pd.Timestamp(self.config.backtest_start)
-        prices_optimization = prices.loc[prices.index < backtest_start].copy()
-        prices_backtest = prices.loc[prices.index >= backtest_start].copy()
+        if self.config.reuse_optimization_window:
+            prices_window = _slice_time_window(
+                prices,
+                start=self.config.optimization_start,
+                end=self.config.end,
+            )
+            prices_optimization = prices_window.copy()
+            prices_backtest = prices_window.copy()
+        else:
+            prices_optimization = _slice_time_window(
+                prices,
+                start=self.config.optimization_start,
+                end=self.config.backtest_start,
+            )
+            prices_backtest = _slice_time_window(
+                prices,
+                start=self._backtest_window_start(),
+                end=self.config.end,
+            )
 
         if len(prices_optimization) < 2:
             raise ValueError("optimization window must contain at least two price rows.")
@@ -665,7 +743,7 @@ class Backtester:
 
         research = AssetsResearch(
             tickers=[self.config.benchmark_ticker],
-            start=self.config.backtest_start,
+            start=self._backtest_window_start(),
             end=self.config.end,
             price_field=self.config.price_field,
         )
@@ -691,8 +769,11 @@ class Backtester:
                 label=str(self.config.benchmark_label),
             )
 
-        backtest_start = pd.Timestamp(self.config.backtest_start)
-        benchmark = benchmark.loc[benchmark.index >= backtest_start].copy()
+        benchmark = _slice_time_window(
+            benchmark,
+            start=self._backtest_window_start(),
+            end=self.config.end,
+        )
         if len(benchmark) < 2:
             raise ValueError("benchmark window must contain at least two price rows.")
 
@@ -776,7 +857,9 @@ class Backtester:
         -----
         This implementation performs a single train/test split. It does not
         rebalance dynamically or use rolling windows; those features can be
-        added later on top of the same strategy interface.
+        added later on top of the same strategy interface. When
+        `reuse_optimization_window=True`, the evaluation is performed
+        in-sample on the same window used for optimization.
         """
         resolved_strategies = self._resolve_strategies(strategies)
         full_prices = self._prepare_prices(prices)
