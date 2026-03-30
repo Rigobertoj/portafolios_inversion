@@ -22,7 +22,14 @@ class PostModernOptimizationConfig:
     Parameters
     ----------
     threshold : float, default 0.0
-        Threshold used to separate downside and upside returns.
+        Scalar downside hurdle used to separate downside and upside returns.
+        When a benchmark return series is supplied to the minimum-semivariance
+        optimization, the effective downside reference becomes
+        `benchmark_returns + threshold`.
+        In other words, this parameter can represent:
+
+        - a standalone MAR when no benchmark is provided, or
+        - a spread over the benchmark when `benchmark_returns` is supplied.
     allow_short : bool, default False
         Allow negative weights when custom bounds are not provided.
     bounds : Sequence[tuple[float, float]] | None, default None
@@ -61,6 +68,14 @@ class MinimumSemivarianceConfig(PostModernOptimizationConfig):
     minimum_return : float | None, default None
         Optional lower bound for the annualized portfolio return. When omitted,
         the routine only minimizes portfolio semivariance.
+
+    Notes
+    -----
+    `minimum_return` is intentionally different from `threshold`:
+
+    - `minimum_return` is an annualized portfolio-level constraint,
+    - `threshold` is the periodic downside hurdle used to classify downside
+      and upside observations.
     """
 
     minimum_return: Optional[float] = None
@@ -179,18 +194,25 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
         objective: str,
         solution,
         threshold: float,
+        benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> PostModernOptimizationResult:
         optimal_weights = np.asarray(solution.x, dtype=float)
         expected_return = self.portfolio_annual_return(weight=optimal_weights)
         semivariance = self.portfolio_semivariance(
             weight=optimal_weights,
             threshold=threshold,
+            benchmark_returns=benchmark_returns,
         )
         downside_risk = self.portfolio_downside_risk(
             weight=optimal_weights,
             threshold=threshold,
+            benchmark_returns=benchmark_returns,
         )
-        omega = self.portfolio_omega_ratio(weight=optimal_weights, threshold=threshold)
+        omega = self.portfolio_omega_ratio(
+            weight=optimal_weights,
+            threshold=threshold,
+            benchmark_returns=benchmark_returns,
+        )
         objective_value = semivariance if objective == "minimum_semivariance" else omega
 
         weights_by_ticker = pd.Series(
@@ -222,20 +244,43 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
     def optimize_minimum_semivariance(
         self,
         config: Optional[MinimumSemivarianceConfig] = None,
+        benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> PostModernOptimizationResult:
         """
         Minimize the annualized portfolio semivariance.
 
         When `minimum_return` is provided, the routine also enforces
         `portfolio_return >= minimum_return`.
+        When `benchmark_returns` is provided, the downside reference becomes
+        `benchmark_returns + threshold`.
         On successful optimization, `self.weight` is updated to the
         optimized allocation.
+
+        Parameters
+        ----------
+        config : MinimumSemivarianceConfig | None, default None
+            Optimization settings for the routine. If omitted, default
+            long-only settings are used.
+        benchmark_returns : pandas.Series | pandas.DataFrame | None
+            Optional benchmark return series used to build a target
+            semivariance problem. When omitted, `config.threshold` behaves as
+            a scalar MAR. When provided, `config.threshold` behaves as a spread
+            over the benchmark.
+
+        Notes
+        -----
+        This method does not reinterpret `minimum_return` as a downside
+        threshold. The downside reference is always controlled by
+        `threshold` and, optionally, `benchmark_returns`.
         """
         if config is None:
             config = MinimumSemivarianceConfig()
 
         threshold = self._normalize_threshold(config.threshold)
-        semivariance_matrix = self.semivariance_matrix(threshold).to_numpy(dtype=float)
+        semivariance_matrix = self.semivariance_matrix(
+            threshold,
+            benchmark_returns=benchmark_returns,
+        ).to_numpy(dtype=float)
         expected_returns = self._annual_returns_vector()
         bounds = self._resolve_bounds(config, len(self._assets_order()))
         constraints = [self._sum_weights_constraint()]
@@ -265,6 +310,7 @@ class PortfolioOptimizationPostModern(PortfolioPostModernMetrics):
             objective="minimum_semivariance",
             solution=solution,
             threshold=threshold,
+            benchmark_returns=benchmark_returns,
         )
 
     def optimize_maximum_omega(
