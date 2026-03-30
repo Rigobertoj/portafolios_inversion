@@ -130,51 +130,49 @@ def ratio_omega(prices : pd.DataFrame, umbral : float = 0) -> np.ndarray:
     )
 
 
-def _target_diff_against_benchmark(
-    returns_assets: pd.DataFrame,
-    benchmark: pd.DataFrame,
-) -> pd.DataFrame:
-    returns_benchmark = _asset_returns(benchmark)
-
-    if isinstance(returns_benchmark, pd.DataFrame):
-        if returns_benchmark.shape[1] != 1:
-            raise ValueError("benchmark debe contener una sola serie de precios.")
-        benchmark_series = returns_benchmark.iloc[:, 0]
-    else:
-        benchmark_series = returns_benchmark
-
-    aligned_assets, aligned_benchmark = returns_assets.align(
-        benchmark_series.rename("benchmark"),
-        join="inner",
-        axis=0,
-    )
-    if aligned_assets.empty:
-        raise ValueError("No hay fechas en comun entre los activos y el benchmark.")
-
-    return aligned_assets.sub(aligned_benchmark, axis=0)
-
-
 def target_semivar(prices : pd.DataFrame, benchmark : pd.DataFrame = None, umbral : float = 0):
-    returns_assets = _asset_returns(prices)
+    returns_assets = prices.pct_change().dropna()
     n_assets = len(returns_assets.columns)
 
-    if umbral != 0 and type(umbral) is float:
-        diff = returns_assets - umbral
-        corr = returns_assets.corr()
+    if isinstance(umbral, (int, float)) and float(umbral) != 0:
+        diff = returns_assets - float(umbral)
+        corr = returns_assets.corr().to_numpy(dtype=float)
     elif benchmark is not None:
-        diff = _target_diff_against_benchmark(returns_assets, benchmark)
-        corr = returns_assets.loc[diff.index].corr()
+        returns_benchmark = benchmark.pct_change().dropna()
+
+        if isinstance(returns_benchmark, pd.DataFrame):
+            if returns_benchmark.shape[1] != 1:
+                raise ValueError("benchmark debe contener una sola serie de precios.")
+            benchmark_series = returns_benchmark.iloc[:, 0]
+        else:
+            benchmark_series = returns_benchmark
+
+        aligned_assets, aligned_benchmark = returns_assets.align(
+            benchmark_series.rename("benchmark"),
+            join="inner",
+            axis=0,
+        )
+        if aligned_assets.empty:
+            raise ValueError("No hay fechas en comun entre los activos y el benchmark.")
+
+        diff = aligned_assets.sub(aligned_benchmark, axis=0)
+        corr = aligned_assets.corr().to_numpy(dtype=float)
     else:
         return None
 
-    below_target = diff[diff < 0].fillna(0)
-    target_downside = np.array(below_target.std())
-    target_semivar_matrix = _build_semivariance_matrix(target_downside, corr, n_assets)
+    below_target = diff.where(diff < 0, 0.0)
+    target_downside = below_target.std().to_numpy(dtype=float)
+    target_semivar_matrix = np.outer(target_downside, target_downside) * corr
 
-    return _optimize_weights(
-        objective=lambda weight: portfolio_var(weight, target_semivar_matrix),
-        n_assets=n_assets,
+    opt = minimize(
+        fun=lambda weight, cov=target_semivar_matrix: float(weight.T @ cov @ weight),
+        x0=np.ones(n_assets) / n_assets,
+        bounds=[(0, 1)] * n_assets,
+        constraints={"fun": lambda weight: np.sum(weight) - 1.0, "type": "eq"},
+        tol=1e-50,
     )
+    print(opt)
+    return opt.x
 ```
 
 ## B) Construccion del portafolio
