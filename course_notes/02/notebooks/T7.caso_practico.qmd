@@ -1,0 +1,488 @@
+---
+title: "Repaso portafolio modulo 2"
+subtitle: "Tarea 7"
+author:   
+    - name: "Rigoberto J. Martinez Madriz"
+date: "2025-03-25"
+format:
+  html:
+    html-math-method: mathml
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "Contenido"
+    self-contained: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contenido"
+number-sections: true
+---
+
+**Objetivo**: Resuelve el siguiente caso práctico y entrega un html con tu procedimiento y respuestas. A continuación se muestran los puntos por resolver.
+
+
+# Función de Métricas de Desempeño.
+
+Genera una función en python que reciba un data frame con la evolución histórica de n cantidad de estrategías de inversión y calcule todas las métricas de desempeño vistas en las dos clases anteriores (Rendimiento, Volatilidad, Ratio de Sharpe, Downside, Upside, Omega, Beta, Alfa de Jensen, Ratio de Treynor, Ratio de Sortino). (20%)
+
+```{python}
+import pandas as pd
+import numpy as np
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import yfinance as yf
+
+from scipy.optimize import minimize
+```
+
+```{python}
+pd.options.display.float_format = "{:,.4f}".format
+```
+
+```{python}
+def metricas_desempeño(
+    df_strategies : pd.DataFrame, 
+    threshold : float,
+    benchmark : pd.DataFrame
+    ) -> pd.DataFrame:
+    
+    benchmark_name = benchmark.columns[0]
+    
+    df_metrics = pd.DataFrame([
+        "Rendimiento esperado", 
+        "Rendimiento realizado",
+        "Volatilidad",
+        "Ratio de sharpe",
+        "Downside risk",
+        "Upside risk",
+        "Omega",
+        "Beta",
+        "Alpha de Jensen",
+        "Ratio de Treynor",
+        "Ratio de Sortino"
+        ])
+    
+    strategies_returns = df_strategies.pct_change().dropna()
+    
+    df_metrics["Rendimiento esperado"] = strategies_returns.mean()
+    
+    df_metrics["Rendimiento realizado"] = strategies_returns.iloc[-1] /  strategies_returns.iloc[0] - 1
+    
+    df_metrics["Volatilidad"] = strategies_returns.std()
+    
+    df_metrics["Ratio de sharpe"] = (df_metrics["Rendimiento esperado"] - threshold)/df_metrics["Volatilidad"]
+    
+    df_metrics["Downside risk"] = strategies_returns[strategies_returns < 0].fillna(0).std()
+    
+    df_metrics["Upside risk"] = strategies_returns[strategies_returns > 0].fillna(0).std()
+    
+    df_metrics["Omega"] = df_metrics["Upside risk"] / df_metrics["Downside risk"]
+    
+    df = pd.concat([df_metrics, df_strategies], axis = 1)
+    
+    benchmark_cov = df.cov()[benchmark_name]
+    
+    df_metrics["Beta"] = benchmark_cov / benchmark.var()
+    
+    return df_metrics
+    
+```
+
+# Backtesting de Portafolio
+
+Asume que quieres invertir en un portafolio compuesto por las siguientes acciones mexicanas: LIVEPOLC1.MX, KOFUBL.MX, CEMEXCPO.MX, CHDRAUIB.MX, CUERVO.MX, LABB.MX, RA.MX.
+Debido a que no sabes como ponderarlos, decides realizar el backtesting para el portafolio para cuatro estrategias de Asset Allocation: Mínima Varianza, Máximo de Sharpe, Semivarianza Target y Omega.
+Realiza el backtesting utilizando datos para simulación del 23-06-2024 hasta el 23-06-2025, toma un período anterior con el mismo horizonte temporal para optimizar las ponderaciones.
+Recuerda siempre comparar con una estrategia de inversión pasiva, en este caso la opción lógica es el IPC México.
+Gráfica la evolución histórica de las cinco alternativas de inversión.
+Con los resultados del backtesting histórico calcula e interpreta las métricas de desempeño para las cinco alternativas de estrategias de inversión simuladas. (50%)
+
+```{python}
+tickers = [
+    "LIVEPOLC-1.MX",
+    "KOFUBL.MX",
+    "CEMEXCPO.MX",
+    "CHDRAUIB.MX",
+    "CUERVO.MX",
+    "LABB.MX",
+    "RA.MX"
+]
+
+start_op = "2023-06-23"
+start_back = "2024-06-23"
+end = "2025-06-23"
+
+V0 = 1_000_000
+
+rf = 0.1045 / 252
+
+bechmark = "^MXX"
+```
+
+### Tasa libre de riesgo
+
+![Tasas de interés](../img/tasas_interes_1_año_2023-2024_mxn.png)
+
+Considerando las tasas de interes vigentes durante el periodo de opt que corresponde del 2023 al 2024 con el cual se pretende optener los peso para realizar el back test se selecciono la ultima tasa de interes vigente en ese momento 10.45% anual
+
+```{python}
+asset_prices_opt = yf.download(tickers=tickers, start=start_op, end = start_back)["Close"]
+asset_prices_back = yf.download(tickers=tickers, start=start_back, end = end)["Close"]
+```
+
+```{python}
+benchmark_prices_opt = yf.download(tickers=bechmark, start=start_op, end=start_back)["Close"]
+benchmark_prices_back = yf.download(tickers=bechmark, start=start_back, end = end)["Close"]
+```
+
+```{python}
+asset_returns_opt = asset_prices_opt.pct_change().dropna()
+asset_returns_back = asset_prices_back.pct_change().dropna()
+
+benchmark_returns_opt = benchmark_prices_opt.pct_change().dropna()
+benchmark_returns_back = benchmark_prices_back.pct_change().dropna()
+```
+
+## Minima Varianza
+
+```{python}
+def obj_function_minima(w : np.ndarray, cov : np.ndarray):
+    return w.T @ cov @ w
+
+def constrain1(w: np.ndarray):
+    return w.sum() - 1
+
+n_assets = len(asset_returns_opt.columns)
+
+bound = [(0,1)] * n_assets
+
+x0 = np.ones(n_assets) / n_assets
+
+tol = 1e-50
+```
+
+```{python}
+assets_cov_opt = asset_returns_opt.cov()
+
+result_min_var = minimize(
+    fun=lambda w: obj_function_minima(w=w, cov=assets_cov_opt),
+    x0=x0,
+    constraints=[
+        {"fun" : constrain1, "type": "eq"}
+    ],
+    bounds=bound,
+    tol=tol
+    )
+
+result_min_var
+```
+
+```{python}
+dict(zip(asset_returns_back, result_min_var.x))
+```
+
+## Maximo de sharpe
+
+```{python}
+asset_returns_opt.mean()
+```
+
+```{python}
+assets_cov_opt
+assets_mean_return_opt = asset_returns_opt.mean()
+assets_mean_return_opt
+```
+
+```{python}
+def obj_function_sharpe(w : pd.Series, rf : float, assets_mean_return: pd.Series, assets_cov: np.ndarray ) -> float:
+    mean_return = w @ assets_mean_return
+    vol_return = np.sqrt(w.T @ assets_cov @ w)
+    return (-1)*((mean_return - rf) / vol_return)
+
+def constrain2(w : np.ndarray):
+    return np.sum(w) - 1
+
+x0 = np.ones(n_assets) / n_assets
+
+bound = [(0, 1)] * n_assets
+
+tol = 1e-50
+```
+
+```{python}
+result_sharpe = minimize(
+    fun=lambda w : obj_function_sharpe(w=w, rf = rf, assets_mean_return=assets_mean_return_opt, assets_cov=assets_cov_opt), 
+    constraints=[
+        {
+            "fun" : lambda w : constrain2(w),
+            "type": "eq"
+        }
+    ], 
+    x0 = x0,
+    bounds=bound,
+    tol = tol
+)
+
+result_sharpe
+```
+
+```{python}
+dict(zip(asset_prices_opt.columns, result_sharpe.x))
+```
+
+## Semivarianza target
+
+```{python}
+diff = asset_returns_opt - benchmark_returns_opt.values
+
+downside = diff[diff < 0].fillna(0)
+
+downside_risk = np.array(downside.std())
+
+downside_risk
+```
+
+```{python}
+downside_risk.reshape(n_assets, 1)
+```
+
+```{python}
+semivar_matrix = downside_risk.reshape(n_assets, 1) @ downside_risk.reshape(1, n_assets) * asset_returns_opt.corr()
+semivar_matrix 
+```
+
+```{python}
+def obj_function_min_semivar(w : np.ndarray):
+    return w.T @ semivar_matrix @ w
+
+
+def constrain3(w :  np.ndarray):
+    return w.sum() - 1
+
+x0 = np.ones(n_assets) / n_assets
+
+bound = [(0,1)] * n_assets
+
+tol = 1e-16
+```
+
+```{python}
+result_min_semiva = minimize(
+    fun=obj_function_min_semivar,
+    constraints=[
+        {
+            "fun" : constrain3,
+            "type": "eq"
+        }
+    ],
+    x0 = x0,
+    bounds=bound,
+    tol = tol
+)
+
+
+result_min_semiva
+```
+
+```{python}
+result_min_semiva.x
+```
+
+```{python}
+dict(zip(asset_returns_opt.columns, result_min_semiva.x))
+```
+
+## Ratio omega
+
+```{python}
+upside = asset_returns_opt[asset_returns_opt > 0].fillna(0)
+downside = asset_returns_opt[asset_returns_opt < 0].fillna(0)
+
+upside_risk = np.array(upside.std())
+downside_risk = np.array(downside.std())
+
+omega = upside_risk / downside_risk
+
+downside_risk
+```
+
+```{python}
+upside_risk
+```
+
+```{python}
+def obj_function_omega(w : np.ndarray, omegas : np.ndarray):
+    return -sum(w * omegas)
+
+def constrain4(w : np.ndarray):
+    return w.sum() - 1
+
+x0 = np.ones(n_assets) / n_assets
+
+bounds = [(0.1,0.4)] * n_assets
+
+tol = 1e-50
+```
+
+```{python}
+result_omega = minimize(
+    fun=lambda w : obj_function_omega(w = w, omegas=omega),
+    constraints=[
+        {
+            "fun" : constrain4,
+            "type" : "eq"
+        }
+    ],
+    x0 = x0,
+    bounds=bounds,
+    tol = tol
+)
+
+result_omega.x
+```
+
+```{python}
+dict(zip(asset_returns_opt.columns, result_omega.x))
+```
+
+## Backtesting
+
+```{python}
+history = pd.DataFrame()
+```
+
+```{python}
+min_var_portfolio_returns_back = result_min_var.x @ asset_returns_back.T
+max_sharpe_portfolio_returns_back = result_sharpe.x @ asset_returns_back.T
+min_semivar_portfolio_returns_back = result_min_semiva.x @ asset_returns_back.T
+omega_portfolio_returns_back = result_omega.x @ asset_returns_back.T
+omega_portfolio_returns_back = np.sum(result_omega.x * asset_returns_back, axis = 1)
+```
+
+```{python}
+history["min_var"] = V0 * (1 + min_var_portfolio_returns_back).cumprod()
+history["max_sharpe"] = V0 * (1 + max_sharpe_portfolio_returns_back).cumprod()
+history["min_semivar"] = V0 * (1 + min_semivar_portfolio_returns_back).cumprod()
+history["min_omega"] = V0 * (1 + omega_portfolio_returns_back).cumprod()
+history["benchmark"] = V0 * (1 + benchmark_returns_back).cumprod()
+
+history.head()
+```
+
+```{python}
+history.plot()
+plt.show()
+```
+
+# Selección de Estrategia de Inversión. (20%)
+
+Utilizando los resultados de tu backtesting y las métricas de desempeño, selecciona una estrategia de inversión. Realiza una conclusión clara, breve y robusta de porque es la mejor estrategia PARA TI, apoyate en las métricas obtenidas y en tu perfil de aversión al riesgo.
+
+## Metricas
+
+```{python}
+returns_history = history.pct_change().dropna()
+```
+
+```{python}
+metrics = pd.DataFrame(index = history.columns)
+
+risk_free = rf * 252
+
+metrics["rendimiento_promedio"] = returns_history.mean() * 252 
+
+metrics["Rendimiento_efectivo"] = (history.iloc[-1] / V0 - 1 )
+
+metrics["Volatilidad"] = returns_history.std() * np.sqrt(252)
+
+metrics["sharpe"] = (metrics.rendimiento_promedio - (risk_free)) /  metrics.Volatilidad
+
+metrics["downside_risk"]  = returns_history[returns_history < 0].fillna(0).std() * np.sqrt(252)
+
+metrics["upside_risk"]  = returns_history[returns_history > 0].fillna(0).std() * np.sqrt(252)
+
+metrics["omega"] = metrics.upside_risk / metrics.downside_risk
+
+metrics["betas"] = returns_history.cov()["benchmark"] / returns_history.cov()["benchmark"]["benchmark"]
+
+metrics["alpha_jensen"] = metrics.rendimiento_promedio - (risk_free  + metrics.betas * (metrics["rendimiento_promedio"]["benchmark"] - risk_free))
+
+metrics["treynor"] = (metrics.rendimiento_promedio - risk_free) / metrics.betas
+
+metrics["sortino"] = (metrics.rendimiento_promedio - risk_free)/metrics.downside_risk
+```
+
+```{python}
+metrics.T
+```
+
+## Conclusion
+
+Desde mi punto de vista, y con base en mi perfil de riesgo considero que el portafolio con mejores metricas corresponde al portafolio de Max Omega. Esto dado que incluso cuando todos los demas portafolios hayan tenido una menor exposición al riesgo sistematico y cuenten con una menor volatilidad, los resultados del portafolios respecto de las medidas de rendimiento son muy superiores, habiendo incluso generado alpha cuando los demas portafolios asumiendo un ligero incremento en la beta del mismo, mientras que los otros portafolios en lugar de generar alpha tiene una alpha inferior a cero, lo que quiere decir que se encuentran sobrevalorados y por tanto no representan una verdadera oportunidad de inversión.
+
+Por tanto considerando estos factores en el desempeño de los portafolios durante la ventana de back puedo considerar que el mejor portafolios para los siguientes periodos se encuetran definido por los pesos de la estrategia de max omega (min omega en el caso de optimizar usando minimize de scipy)
+
+# Calculo de Pesos para Portafolio Real.
+
+En base a la estrategia de Asset Allocation seleccionada en el punto anterior, calcula los pesos eficientes y la cantidad de acciones que utilizarías para invertir en la realidad en tu portafolio. Recuerda tomar la ventana de datos más reciente, en función del horizonte temporal tomado. (10%)
+
+En el entendido que la ventana de tiempo más reciente corresponde al periodo empieza a partir del 23 de marzo de 2025 hasta el 25 de marzo del 2026 para invertir en un portafolio en la realidad, se utilizara la estrategia de Max Omega para estimar los pesos del portafolios
+
+```{python}
+start_real = "2025-03-23"
+end_real = "2026-03-25"
+
+prices_real = yf.download(tickers=tickers, start=start_real, end=end_real)["Close"]
+
+returns_real = prices_real.pct_change().dropna()
+```
+
+```{python}
+returns_real
+```
+
+```{python}
+def opt_max_omega(rets):
+    n_assets = len(rets.columns)
+    
+    below_zero = rets[rets < 0].fillna(0)
+    above_zero = rets[rets > 0].fillna(0)
+    
+    upside = np.array(above_zero.std())
+    downside = np.array(below_zero.std())
+    
+    omegas = upside/downside
+    
+    omega = lambda w: -np.sum(w*omegas)
+    
+    w0 = np.ones(n_assets)/n_assets
+    
+    bounds = [(0.1,0.4)]*n_assets
+    
+    constraint = lambda w: sum(w)-1
+    
+    result = minimize(
+        fun=omega, x0=w0, 
+        bounds=bounds,
+        constraints=
+        {'fun': constraint, 
+        'type': 'eq'
+        }, 
+        tol=1e-16)
+    
+    return result.x
+```
+
+```{python}
+weight_portfolio = opt_max_omega(rets=returns_real)
+```
+
+### Asignación de capital
+
+```{python}
+dict(zip(returns_real.columns,weight_portfolio))
+```
+
