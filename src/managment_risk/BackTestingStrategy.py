@@ -286,7 +286,11 @@ class AllocationStrategy(ABC):
         return self._name or self.default_name
 
     @abstractmethod
-    def optimize(self, prices: pd.DataFrame) -> StrategyAllocation:
+    def optimize(
+        self,
+        prices: pd.DataFrame,
+        optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
+    ) -> StrategyAllocation:
         """
         Optimize the portfolio using the provided price window.
 
@@ -294,6 +298,13 @@ class AllocationStrategy(ABC):
         ----------
         prices : pandas.DataFrame
             Price table used as in-sample optimization window.
+        optimization_benchmark_prices : pandas.Series | pandas.DataFrame | None
+            Optional benchmark price series used by strategies that need an
+            optimization-time downside reference, such as target
+            minimum-semivariance.
+
+            This input is separate from any benchmark used later for
+            performance reporting in the backtest output.
 
         Returns
         -------
@@ -466,7 +477,11 @@ class MeanVarianceStrategy(AllocationStrategy):
         """Default display name associated with the selected objective."""
         return self._DEFAULT_NAMES[self.objective]
 
-    def optimize(self, prices: pd.DataFrame) -> StrategyAllocation:
+    def optimize(
+        self,
+        prices: pd.DataFrame,
+        optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
+    ) -> StrategyAllocation:
         """
         Optimize portfolio weights on the provided in-sample window.
 
@@ -485,6 +500,8 @@ class MeanVarianceStrategy(AllocationStrategy):
         RuntimeError
             If the underlying optimizer does not converge successfully.
         """
+        del optimization_benchmark_prices
+
         config = self.config
         if config is None:
             if self.objective == "minimum_variance":
@@ -524,7 +541,10 @@ class PostModernStrategy(AllocationStrategy):
         optimizer.
     config : PostModernOptimizationConfig | None, default None
         Optional configuration forwarded to the optimizer. When omitted, a
-        default config is instantiated based on the objective.
+        default config is instantiated based on the objective. For
+        `minimum_semivariance`, `config.threshold` acts as a MAR when no
+        optimization benchmark is supplied, or as a spread over the benchmark
+        when one is provided.
     name : str | None, default None
         Optional custom label used in outputs.
     """
@@ -554,7 +574,11 @@ class PostModernStrategy(AllocationStrategy):
         """Default display name associated with the selected objective."""
         return self._DEFAULT_NAMES[self.objective]
 
-    def optimize(self, prices: pd.DataFrame) -> StrategyAllocation:
+    def optimize(
+        self,
+        prices: pd.DataFrame,
+        optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
+    ) -> StrategyAllocation:
         """
         Optimize post-modern portfolio weights on the provided price window.
 
@@ -562,6 +586,12 @@ class PostModernStrategy(AllocationStrategy):
         ----------
         prices : pandas.DataFrame
             Historical in-sample price table.
+        optimization_benchmark_prices : pandas.Series | pandas.DataFrame | None
+            Optional benchmark price series used only when
+            `objective="minimum_semivariance"`. The series is converted to
+            returns and passed to the optimizer as a downside reference.
+            When omitted, the optimization uses the scalar threshold/MAR from
+            the config.
 
         Returns
         -------
@@ -585,8 +615,35 @@ class PostModernStrategy(AllocationStrategy):
             initial_weights=config.initial_weights,
         )
 
+        benchmark_returns = None
+        if (
+            self.objective == "minimum_semivariance"
+            and optimization_benchmark_prices is not None
+        ):
+            benchmark_label = "Optimization Benchmark"
+            if isinstance(optimization_benchmark_prices, pd.Series):
+                benchmark_label = str(
+                    optimization_benchmark_prices.name or benchmark_label
+                )
+            elif (
+                isinstance(optimization_benchmark_prices, pd.DataFrame)
+                and optimization_benchmark_prices.shape[1] == 1
+            ):
+                benchmark_label = str(
+                    optimization_benchmark_prices.columns[0] or benchmark_label
+                )
+
+            benchmark_prices = _normalize_benchmark_prices(
+                optimization_benchmark_prices,
+                label=benchmark_label,
+            )
+            benchmark_returns = benchmark_prices.pct_change().dropna()
+
         if self.objective == "minimum_semivariance":
-            result = optimizer.optimize_minimum_semivariance(config=config)
+            result = optimizer.optimize_minimum_semivariance(
+                config=config,
+                benchmark_returns=benchmark_returns,
+            )
         else:
             result = optimizer.optimize_maximum_omega(config=config)
 
@@ -753,6 +810,38 @@ class Backtester:
             label=str(self.config.benchmark_label),
         )
 
+    def _prepare_optimization_benchmark_prices(
+        self,
+        optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
+    ) -> Optional[pd.Series]:
+        """Validate and slice the optimization benchmark to the in-sample window."""
+        if optimization_benchmark_prices is None:
+            return None
+
+        label = "Optimization Benchmark"
+        if isinstance(optimization_benchmark_prices, pd.Series):
+            label = str(optimization_benchmark_prices.name or label)
+        elif (
+            isinstance(optimization_benchmark_prices, pd.DataFrame)
+            and optimization_benchmark_prices.shape[1] == 1
+        ):
+            label = str(optimization_benchmark_prices.columns[0] or label)
+
+        benchmark = _normalize_benchmark_prices(
+            optimization_benchmark_prices,
+            label=label,
+        )
+        benchmark = _slice_time_window(
+            benchmark,
+            start=self.config.optimization_start,
+            end=self._optimization_window_end(),
+        )
+        if len(benchmark) < 2:
+            raise ValueError(
+                "optimization benchmark window must contain at least two price rows."
+            )
+        return benchmark
+
     def _build_benchmark_result(
         self,
         benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
@@ -829,6 +918,7 @@ class Backtester:
         *,
         prices: Optional[pd.DataFrame] = None,
         benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
+        optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> BacktestResult:
         """
         Execute the backtest for one or more allocation strategies.
@@ -844,7 +934,13 @@ class Backtester:
         benchmark_prices : pandas.Series | pandas.DataFrame | None, default None
             Optional benchmark price series. When omitted and
             `config.benchmark_ticker` is configured, benchmark data is
-            downloaded automatically.
+            downloaded automatically. This benchmark is used for the reported
+            benchmark path and summary comparison.
+        optimization_benchmark_prices : pandas.Series | pandas.DataFrame | None
+            Optional benchmark price series used during optimization by
+            strategies that support a benchmark-based downside reference.
+            This is independent from `benchmark_prices`, so the same series may
+            be reused for both purposes or separate references may be supplied.
 
         Returns
         -------
@@ -860,17 +956,30 @@ class Backtester:
         added later on top of the same strategy interface. When
         `reuse_optimization_window=True`, the evaluation is performed
         in-sample on the same window used for optimization.
+
+        Notes
+        -----
+        The benchmark used for optimization and the benchmark used for
+        performance reporting are intentionally modeled as separate inputs.
+        This keeps benchmark-relative optimization logic decoupled from the
+        reporting layer.
         """
         resolved_strategies = self._resolve_strategies(strategies)
         full_prices = self._prepare_prices(prices)
         prices_optimization, prices_backtest = self._split_prices(full_prices)
+        optimization_benchmark = self._prepare_optimization_benchmark_prices(
+            optimization_benchmark_prices=optimization_benchmark_prices,
+        )
 
         strategy_results: Dict[str, BacktestStrategyResult] = {}
         returns_data: Dict[str, pd.Series] = {}
         evolution_data: Dict[str, pd.Series] = {}
 
         for strategy in resolved_strategies:
-            allocation = strategy.optimize(prices_optimization)
+            allocation = strategy.optimize(
+                prices_optimization,
+                optimization_benchmark_prices=optimization_benchmark,
+            )
             result = self._build_strategy_result(allocation, prices_backtest)
             strategy_results[result.name] = result
             returns_data[result.name] = result.portfolio_returns
