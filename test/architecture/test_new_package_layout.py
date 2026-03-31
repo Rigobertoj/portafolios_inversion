@@ -109,3 +109,11 @@ def test_backtesting_exports_map_to_existing_classes():
     assert BacktestResult is LegacyBacktestResult
     assert BacktestStrategyResult is LegacyBacktestStrategyResult
     assert StrategyAllocation is LegacyStrategyAllocation
+    assert Backtester.__module__ == "src.backtesting.engine_static"
+    assert AllocationStrategy.__module__ == "src.backtesting.strategies"
+    assert MeanVarianceStrategy.__module__ == "src.backtesting.strategies"
+    assert PostModernStrategy.__module__ == "src.backtesting.strategies"
+    assert BacktestConfig.__module__ == "src.backtesting.results"
+    assert BacktestResult.__module__ == "src.backtesting.results"
+    assert BacktestStrategyResult.__module__ == "src.backtesting.results"
+    assert StrategyAllocation.__module__ == "src.backtesting.results"
