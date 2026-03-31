@@ -4,6 +4,7 @@ import pandas as pd
 from src.portfolio import (
     Portfolio,
     PortfolioBasicMetrics,
+    PortfolioBenchmarkAnalysis,
     PortfolioDownsideMetrics,
     PortfolioPerformanceAnalysis,
 )
@@ -149,6 +150,49 @@ def test_portfolio_downside_metrics_match_manual_formulas():
     )
 
 
+def test_portfolio_benchmark_analysis_match_manual_formulas():
+    prices = _sample_prices()
+    benchmark_prices = _sample_benchmark_prices()
+    weights = np.array([0.5, 0.3, 0.2])
+    portfolio = Portfolio(prices=prices, weights=weights, name="Demo")
+    analysis = PortfolioBenchmarkAnalysis(
+        portfolio=portfolio,
+        benchmark_prices=benchmark_prices,
+    )
+
+    portfolio_returns = portfolio.portfolio_returns()
+    benchmark_returns = benchmark_prices.pct_change().dropna()
+    aligned = pd.concat(
+        [
+            portfolio_returns.rename("portfolio"),
+            benchmark_returns.rename("benchmark"),
+        ],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    expected_benchmark_return = benchmark_returns.mean() * 252.0
+    expected_beta = aligned["portfolio"].cov(aligned["benchmark"]) / aligned["benchmark"].var()
+    expected_capm = 0.02 + expected_beta * (expected_benchmark_return - 0.02)
+    expected_jensen = (portfolio_returns.mean() * 252.0) - expected_capm
+    expected_treynor = ((portfolio_returns.mean() * 252.0) - 0.02) / expected_beta
+
+    assert np.isclose(analysis.benchmark_annual_return(), expected_benchmark_return)
+    assert np.isclose(analysis.portfolio_beta(), expected_beta)
+    assert np.isclose(
+        analysis.portfolio_capm_expected_return(risk_free_rate=0.02),
+        expected_capm,
+    )
+    assert np.isclose(
+        analysis.portfolio_jensen_alpha(risk_free_rate=0.02),
+        expected_jensen,
+    )
+    assert np.isclose(
+        analysis.portfolio_treynor_ratio(risk_free_rate=0.02),
+        expected_treynor,
+    )
+
+
 def test_portfolio_performance_analysis_builds_expected_metrics_table():
     prices = _sample_prices()
     benchmark_prices = _sample_benchmark_prices()
@@ -159,6 +203,10 @@ def test_portfolio_performance_analysis_builds_expected_metrics_table():
         benchmark_prices=benchmark_prices,
     )
     downside_metrics = PortfolioDownsideMetrics(portfolio=portfolio)
+    benchmark_analysis = PortfolioBenchmarkAnalysis(
+        portfolio=portfolio,
+        benchmark_prices=benchmark_prices,
+    )
 
     table = analysis.metrics_table(risk_free_rate=0.02)
     expected_index = [
@@ -206,6 +254,15 @@ def test_portfolio_performance_analysis_builds_expected_metrics_table():
         downside_metrics.portfolio_omega_ratio(),
     )
     assert np.isclose(table.loc["Beta", "value"], beta)
-    assert np.isfinite(table.loc["Ratio de Sortino", "value"])
-    assert np.isfinite(table.loc["Alpha de Jensen", "value"])
-    assert np.isfinite(table.loc["Ratio de Treynor", "value"])
+    assert np.isclose(
+        table.loc["Alpha de Jensen", "value"],
+        benchmark_analysis.portfolio_jensen_alpha(risk_free_rate=0.02),
+    )
+    assert np.isclose(
+        table.loc["Ratio de Treynor", "value"],
+        benchmark_analysis.portfolio_treynor_ratio(risk_free_rate=0.02),
+    )
+    assert np.isclose(
+        table.loc["Ratio de Sortino", "value"],
+        downside_metrics.portfolio_sortino_ratio(risk_free_rate=0.02),
+    )
