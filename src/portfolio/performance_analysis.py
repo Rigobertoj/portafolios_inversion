@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from .metrics_basic import PortfolioBasicMetrics
 from .portfolio import Portfolio
 
 
@@ -32,6 +33,10 @@ class PortfolioPerformanceAnalysis:
             raise ValueError("trading_days must be greater than zero.")
         if self.benchmark_returns is not None and self.benchmark_prices is not None:
             raise ValueError("provide benchmark_returns or benchmark_prices, not both.")
+        self._basic_metrics = PortfolioBasicMetrics(
+            portfolio=self.portfolio,
+            trading_days=self.trading_days,
+        )
 
     @staticmethod
     def _normalize_benchmark_series(
@@ -95,24 +100,24 @@ class PortfolioPerformanceAnalysis:
 
     def expected_return(self) -> float:
         """Return the annualized mean return of the portfolio."""
-        returns = self.portfolio.portfolio_returns()
-        return float(returns.mean() * self.trading_days)
+        return self._basic_metrics.portfolio_annual_return()
 
     def realized_return(self) -> float:
         """Return the effective realized return of the portfolio."""
-        return self.portfolio.realized_return()
+        return self._basic_metrics.portfolio_realized_return()
 
     def volatility(self) -> float:
         """Return the annualized volatility of the portfolio."""
-        returns = self.portfolio.portfolio_returns()
-        return float(returns.std() * np.sqrt(self.trading_days))
+        return self._basic_metrics.portfolio_annual_volatility()
 
     def sharpe_ratio(self, risk_free_rate: float = 0.0) -> float:
         """Return the annualized Sharpe ratio of the portfolio."""
-        volatility = self.volatility()
-        if np.isclose(volatility, 0.0):
+        try:
+            return self._basic_metrics.portfolio_sharpe_ratio(
+                free_rate=risk_free_rate,
+            )
+        except ValueError:
             return float("nan")
-        return float((self.expected_return() - risk_free_rate) / volatility)
 
     def _reference_adjusted_portfolio_returns(
         self,
