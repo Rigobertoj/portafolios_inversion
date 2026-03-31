@@ -1,6 +1,6 @@
-"""Compatibility exports for the legacy backtesting package name."""
+"""Snake-case compatibility wrapper for the legacy backtesting bridge."""
 
-from .backtesting_strategy import (
+from .BackTestingStrategy import (
     AllocationStrategy,
     BacktestConfig,
     BacktestResult,

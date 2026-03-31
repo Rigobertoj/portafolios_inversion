@@ -90,9 +90,13 @@ class PostModernOptimizer:
         return result
 
 
+PortfolioOptimizationPostMordern = PortfolioOptimizationPostModern
+
+
 __all__ = [
     "MaximumOmegaConfig",
     "MinimumSemivarianceConfig",
+    "PortfolioOptimizationPostMordern",
     "PortfolioOptimizationPostModern",
     "PostModernOptimizationConfig",
     "PostModernOptimizationResult",

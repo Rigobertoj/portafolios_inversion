@@ -1,6 +1,6 @@
-"""Compatibility exports for the portfolio utility helpers."""
+"""Snake-case compatibility wrapper for PDF image conversion helpers."""
 
-from .pdf_image_converter import (
+from .PdfImageConverter import (
     PageExportTask,
     PdfImageConversionReport,
     PdfToImageOptions,

@@ -8,7 +8,11 @@ from .configs import (
     PostModernOptimizationConfig,
 )
 from .mean_variance import MeanVarianceOptimizer, PortfolioOptimization
-from .postmodern import PostModernOptimizer, PortfolioOptimizationPostModern
+from .postmodern import (
+    PortfolioOptimizationPostMordern,
+    PortfolioOptimizationPostModern,
+    PostModernOptimizer,
+)
 from .results import OptimizationResult, PostModernOptimizationResult
 
 __all__ = [
@@ -19,6 +23,7 @@ __all__ = [
     "OptimizationConfig",
     "OptimizationResult",
     "PortfolioOptimization",
+    "PortfolioOptimizationPostMordern",
     "PortfolioOptimizationPostModern",
     "PostModernOptimizationConfig",
     "PostModernOptimizationResult",
