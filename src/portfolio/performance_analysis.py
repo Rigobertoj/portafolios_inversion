@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .metrics_basic import PortfolioBasicMetrics
+from .metrics_downside import PortfolioDownsideMetrics
 from .portfolio import Portfolio
 
 
@@ -34,6 +35,10 @@ class PortfolioPerformanceAnalysis:
         if self.benchmark_returns is not None and self.benchmark_prices is not None:
             raise ValueError("provide benchmark_returns or benchmark_prices, not both.")
         self._basic_metrics = PortfolioBasicMetrics(
+            portfolio=self.portfolio,
+            trading_days=self.trading_days,
+        )
+        self._downside_metrics = PortfolioDownsideMetrics(
             portfolio=self.portfolio,
             trading_days=self.trading_days,
         )
@@ -119,42 +124,16 @@ class PortfolioPerformanceAnalysis:
         except ValueError:
             return float("nan")
 
-    def _reference_adjusted_portfolio_returns(
-        self,
-        threshold: float = 0.0,
-        benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
-    ) -> pd.Series:
-        portfolio_returns = self.portfolio.portfolio_returns()
-        if benchmark_returns is None:
-            return portfolio_returns - float(threshold)
-
-        benchmark = self._normalize_benchmark_series(benchmark_returns)
-        aligned = pd.concat(
-            [
-                portfolio_returns.rename("portfolio"),
-                benchmark.rename("benchmark"),
-            ],
-            axis=1,
-            join="inner",
-        ).dropna()
-        if len(aligned) < 2:
-            raise ValueError(
-                "benchmark_returns must overlap portfolio returns with at least two observations."
-            )
-        return aligned["portfolio"] - (aligned["benchmark"] + float(threshold))
-
     def downside_risk(
         self,
         threshold: float = 0.0,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
         """Return annualized downside risk for the portfolio."""
-        adjusted = self._reference_adjusted_portfolio_returns(
+        return self._downside_metrics.portfolio_downside_risk(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
         )
-        downside = adjusted.where(adjusted < 0.0, 0.0).std() * np.sqrt(self.trading_days)
-        return float(downside)
 
     def upside_risk(
         self,
@@ -162,12 +141,10 @@ class PortfolioPerformanceAnalysis:
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
         """Return annualized upside risk for the portfolio."""
-        adjusted = self._reference_adjusted_portfolio_returns(
+        return self._downside_metrics.portfolio_upside_risk(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
         )
-        upside = adjusted.where(adjusted > 0.0, 0.0).std() * np.sqrt(self.trading_days)
-        return float(upside)
 
     def omega_ratio(
         self,
@@ -175,17 +152,10 @@ class PortfolioPerformanceAnalysis:
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
         """Return the Omega ratio of the portfolio."""
-        downside = self.downside_risk(
+        return self._downside_metrics.portfolio_omega_ratio(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
         )
-        if np.isclose(downside, 0.0):
-            return float("nan")
-        upside = self.upside_risk(
-            threshold=threshold,
-            benchmark_returns=benchmark_returns,
-        )
-        return float(upside / downside)
 
     def sortino_ratio(
         self,
@@ -194,13 +164,11 @@ class PortfolioPerformanceAnalysis:
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
         """Return the Sortino ratio of the portfolio."""
-        downside = self.downside_risk(
+        return self._downside_metrics.portfolio_sortino_ratio(
+            risk_free_rate=risk_free_rate,
             threshold=threshold,
             benchmark_returns=benchmark_returns,
         )
-        if np.isclose(downside, 0.0):
-            return float("nan")
-        return float((self.expected_return() - risk_free_rate) / downside)
 
     def beta(self) -> float:
         """Return the portfolio beta relative to the configured benchmark."""
