@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -51,14 +51,19 @@ class PostModernOptimizer:
 
     def optimize_minimum_semivariance(
         self,
-        config: Optional[MinimumSemivarianceConfig] = None,
+        config: Optional[Any] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> PostModernOptimizationResult:
         """Minimize annualized semivariance under the selected downside reference."""
         active_config = MinimumSemivarianceConfig() if config is None else config
+        legacy_config = (
+            active_config.to_legacy()
+            if hasattr(active_config, "to_legacy")
+            else active_config
+        )
         legacy_optimizer = self._build_legacy_optimizer()
         legacy_result = legacy_optimizer.optimize_minimum_semivariance(
-            config=active_config.to_legacy(),
+            config=legacy_config,
             benchmark_returns=benchmark_returns,
         )
         result = PostModernOptimizationResult.from_legacy(legacy_result)
@@ -67,13 +72,18 @@ class PostModernOptimizer:
 
     def optimize_maximum_omega(
         self,
-        config: Optional[MaximumOmegaConfig] = None,
+        config: Optional[Any] = None,
     ) -> PostModernOptimizationResult:
         """Maximize the portfolio Omega ratio."""
         active_config = MaximumOmegaConfig() if config is None else config
+        legacy_config = (
+            active_config.to_legacy()
+            if hasattr(active_config, "to_legacy")
+            else active_config
+        )
         legacy_optimizer = self._build_legacy_optimizer()
         legacy_result = legacy_optimizer.optimize_maximum_omega(
-            config=active_config.to_legacy(),
+            config=legacy_config,
         )
         result = PostModernOptimizationResult.from_legacy(legacy_result)
         self._apply_optimized_weights(result)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from ..asset_allocation.PortfolioOptimization import PortfolioOptimization
 from ..portfolio import Portfolio
@@ -44,13 +44,18 @@ class MeanVarianceOptimizer:
 
     def optimize_minimum_variance(
         self,
-        config: Optional[MinimumVarianceConfig] = None,
+        config: Optional[Any] = None,
     ) -> OptimizationResult:
         """Minimize the annualized portfolio variance."""
         active_config = MinimumVarianceConfig() if config is None else config
+        legacy_config = (
+            active_config.to_legacy()
+            if hasattr(active_config, "to_legacy")
+            else active_config
+        )
         legacy_optimizer = self._build_legacy_optimizer()
         legacy_result = legacy_optimizer.optimize_minimum_variance(
-            config=active_config.to_legacy(),
+            config=legacy_config,
         )
         result = OptimizationResult.from_legacy(legacy_result)
         self._apply_optimized_weights(result)
@@ -58,13 +63,18 @@ class MeanVarianceOptimizer:
 
     def optimize_maximum_sharpe(
         self,
-        config: Optional[OptimizationConfig] = None,
+        config: Optional[Any] = None,
     ) -> OptimizationResult:
         """Maximize the annualized Sharpe ratio of the portfolio."""
         active_config = OptimizationConfig() if config is None else config
+        legacy_config = (
+            active_config.to_legacy()
+            if hasattr(active_config, "to_legacy")
+            else active_config
+        )
         legacy_optimizer = self._build_legacy_optimizer()
         legacy_result = legacy_optimizer.optimize_maximum_sharpe(
-            config=active_config.to_legacy(),
+            config=legacy_config,
         )
         result = OptimizationResult.from_legacy(legacy_result)
         self._apply_optimized_weights(result)
