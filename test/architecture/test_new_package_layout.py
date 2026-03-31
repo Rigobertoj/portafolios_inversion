@@ -59,6 +59,7 @@ from src.portfolio import (
     PortfolioBasicMetrics,
     PortfolioBenchmarkAnalysis,
     PortfolioDownsideMetrics,
+    PortfolioPerformanceAnalysis,
 )
 from src.research import AssetsResearch
 from src.security_selection import (
@@ -79,6 +80,7 @@ def test_portfolio_exports_map_to_existing_classes():
     assert PortfolioDownsideMetrics is PortfolioPostModernMetrics
     assert PortfolioBenchmarkAnalysis is PortfolioElementaryAnalysis
     assert Portfolio is not None
+    assert PortfolioPerformanceAnalysis is not None
 
 
 def test_optimization_exports_map_to_existing_classes():

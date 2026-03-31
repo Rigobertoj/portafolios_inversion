@@ -12,6 +12,7 @@ from .metrics_downside import (
     PortfolioDownsideMetrics,
     PortfolioPostModernMetrics,
 )
+from .performance_analysis import PortfolioPerformanceAnalysis
 from .portfolio import Portfolio
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "PortfolioDownsideMetrics",
     "PortfolioElementaryAnalysis",
     "PortfolioElementaryMetrics",
+    "PortfolioPerformanceAnalysis",
     "PortfolioPostModernMetrics",
 ]

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from src.portfolio import Portfolio
+from src.portfolio import Portfolio, PortfolioPerformanceAnalysis
 from src.research import AssetsResearch
 
 
@@ -15,6 +15,16 @@ def _sample_prices() -> pd.DataFrame:
         },
         index=dates,
     )
+
+
+def _sample_benchmark_prices() -> pd.Series:
+    dates = pd.date_range("2024-01-01", periods=6, freq="D")
+    return pd.Series(
+        [4000.0, 4010.0, 4005.0, 4020.0, 4035.0, 4040.0],
+        index=dates,
+        name="^GSPC",
+    )
+
 
 def test_portfolio_from_research_reuses_cached_data():
     prices = _sample_prices()
@@ -63,3 +73,52 @@ def test_portfolio_computes_weighted_returns_and_wealth_index():
     expected_wealth.name = "Demo"
     pd.testing.assert_series_equal(wealth, expected_wealth)
     assert np.isclose(portfolio.realized_return(), (1.0 + manual_returns).prod() - 1.0)
+
+
+def test_portfolio_performance_analysis_builds_expected_metrics_table():
+    prices = _sample_prices()
+    benchmark_prices = _sample_benchmark_prices()
+    weights = np.array([0.5, 0.3, 0.2])
+    portfolio = Portfolio(prices=prices, weights=weights, name="Demo")
+    analysis = PortfolioPerformanceAnalysis(
+        portfolio=portfolio,
+        benchmark_prices=benchmark_prices,
+    )
+
+    table = analysis.metrics_table(risk_free_rate=0.02)
+    expected_index = [
+        "Rendimiento esperado",
+        "Rendimiento realizado",
+        "Volatilidad",
+        "Ratio de sharpe",
+        "Downside risk",
+        "Upside risk",
+        "Omega",
+        "Beta",
+        "Alpha de Jensen",
+        "Ratio de Treynor",
+        "Ratio de Sortino",
+    ]
+
+    assert list(table.index) == expected_index
+
+    portfolio_returns = portfolio.portfolio_returns()
+    benchmark_returns = benchmark_prices.pct_change().dropna()
+    aligned = pd.concat(
+        [portfolio_returns.rename("portfolio"), benchmark_returns.rename("benchmark")],
+        axis=1,
+        join="inner",
+    ).dropna()
+
+    expected_return = portfolio_returns.mean() * 252.0
+    realized_return = (1.0 + portfolio_returns).prod() - 1.0
+    volatility = portfolio_returns.std() * np.sqrt(252.0)
+    beta = aligned["portfolio"].cov(aligned["benchmark"]) / aligned["benchmark"].var()
+
+    assert np.isclose(table.loc["Rendimiento esperado", "value"], expected_return)
+    assert np.isclose(table.loc["Rendimiento realizado", "value"], realized_return)
+    assert np.isclose(table.loc["Volatilidad", "value"], volatility)
+    assert np.isclose(table.loc["Beta", "value"], beta)
+    assert np.isfinite(table.loc["Ratio de Sortino", "value"])
+    assert np.isfinite(table.loc["Alpha de Jensen", "value"])
+    assert np.isfinite(table.loc["Ratio de Treynor", "value"])
