@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 
-from src.portfolio import Portfolio, PortfolioPerformanceAnalysis
+from src.portfolio import (
+    Portfolio,
+    PortfolioBasicMetrics,
+    PortfolioPerformanceAnalysis,
+)
 from src.research import AssetsResearch
 
 
@@ -73,6 +77,31 @@ def test_portfolio_computes_weighted_returns_and_wealth_index():
     expected_wealth.name = "Demo"
     pd.testing.assert_series_equal(wealth, expected_wealth)
     assert np.isclose(portfolio.realized_return(), (1.0 + manual_returns).prod() - 1.0)
+
+
+def test_portfolio_basic_metrics_match_manual_formulas():
+    prices = _sample_prices()
+    weights = np.array([0.5, 0.3, 0.2])
+    portfolio = Portfolio(prices=prices, weights=weights, name="Demo")
+    metrics = PortfolioBasicMetrics(portfolio=portfolio)
+
+    manual_returns = prices.pct_change().dropna() @ weights
+    manual_returns.name = "Demo"
+    manual_path = pd.Series(
+        prices.to_numpy(dtype=float) @ weights,
+        index=prices.index,
+        name="Demo",
+    )
+
+    pd.testing.assert_series_equal(metrics.portfolio_returns(), manual_returns)
+    pd.testing.assert_series_equal(metrics.portfolio_path(), manual_path)
+    assert np.isclose(metrics.portfolio_annual_return(), manual_returns.mean() * 252.0)
+    assert np.isclose(metrics.portfolio_realized_return(), (1.0 + manual_returns).prod() - 1.0)
+    assert np.isclose(metrics.portfolio_variance(), manual_returns.var() * 252.0)
+    assert np.isclose(
+        metrics.portfolio_annual_volatility(),
+        manual_returns.std() * np.sqrt(252.0),
+    )
 
 
 def test_portfolio_performance_analysis_builds_expected_metrics_table():
