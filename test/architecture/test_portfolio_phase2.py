@@ -4,6 +4,7 @@ import pandas as pd
 from src.portfolio import (
     Portfolio,
     PortfolioBasicMetrics,
+    PortfolioDownsideMetrics,
     PortfolioPerformanceAnalysis,
 )
 from src.research import AssetsResearch
@@ -104,6 +105,50 @@ def test_portfolio_basic_metrics_match_manual_formulas():
     )
 
 
+def test_portfolio_downside_metrics_match_manual_formulas():
+    prices = _sample_prices()
+    weights = np.array([0.5, 0.3, 0.2])
+    benchmark_returns = _sample_benchmark_prices().pct_change().dropna()
+    portfolio = Portfolio(prices=prices, weights=weights, name="Demo")
+    metrics = PortfolioDownsideMetrics(portfolio=portfolio)
+
+    portfolio_returns = portfolio.portfolio_returns()
+    downside = portfolio_returns.where(portfolio_returns < 0.0, 0.0)
+    upside = portfolio_returns.where(portfolio_returns > 0.0, 0.0)
+    expected_downside_risk = downside.std() * np.sqrt(252.0)
+    expected_upside_risk = upside.std() * np.sqrt(252.0)
+    expected_semivariance = downside.var() * 252.0
+    expected_omega = expected_upside_risk / expected_downside_risk
+    expected_sortino = ((portfolio_returns.mean() * 252.0) - 0.02) / expected_downside_risk
+
+    assert np.isclose(metrics.portfolio_semivariance(), expected_semivariance)
+    assert np.isclose(metrics.portfolio_downside_risk(), expected_downside_risk)
+    assert np.isclose(metrics.portfolio_upside_risk(), expected_upside_risk)
+    assert np.isclose(metrics.portfolio_omega_ratio(), expected_omega)
+    assert np.isclose(
+        metrics.portfolio_sortino_ratio(risk_free_rate=0.02),
+        expected_sortino,
+    )
+
+    aligned = pd.concat(
+        [
+            portfolio_returns.rename("portfolio"),
+            benchmark_returns.rename("benchmark"),
+        ],
+        axis=1,
+        join="inner",
+    ).dropna()
+    relative = aligned["portfolio"] - aligned["benchmark"]
+    expected_relative_downside = (
+        relative.where(relative < 0.0, 0.0).std() * np.sqrt(252.0)
+    )
+
+    assert np.isclose(
+        metrics.portfolio_downside_risk(benchmark_returns=benchmark_returns),
+        expected_relative_downside,
+    )
+
+
 def test_portfolio_performance_analysis_builds_expected_metrics_table():
     prices = _sample_prices()
     benchmark_prices = _sample_benchmark_prices()
@@ -113,6 +158,7 @@ def test_portfolio_performance_analysis_builds_expected_metrics_table():
         portfolio=portfolio,
         benchmark_prices=benchmark_prices,
     )
+    downside_metrics = PortfolioDownsideMetrics(portfolio=portfolio)
 
     table = analysis.metrics_table(risk_free_rate=0.02)
     expected_index = [
@@ -147,6 +193,18 @@ def test_portfolio_performance_analysis_builds_expected_metrics_table():
     assert np.isclose(table.loc["Rendimiento esperado", "value"], expected_return)
     assert np.isclose(table.loc["Rendimiento realizado", "value"], realized_return)
     assert np.isclose(table.loc["Volatilidad", "value"], volatility)
+    assert np.isclose(
+        table.loc["Downside risk", "value"],
+        downside_metrics.portfolio_downside_risk(),
+    )
+    assert np.isclose(
+        table.loc["Upside risk", "value"],
+        downside_metrics.portfolio_upside_risk(),
+    )
+    assert np.isclose(
+        table.loc["Omega", "value"],
+        downside_metrics.portfolio_omega_ratio(),
+    )
     assert np.isclose(table.loc["Beta", "value"], beta)
     assert np.isfinite(table.loc["Ratio de Sortino", "value"])
     assert np.isfinite(table.loc["Alpha de Jensen", "value"])

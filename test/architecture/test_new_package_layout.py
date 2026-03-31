@@ -77,7 +77,7 @@ def test_research_and_selection_exports_map_to_existing_classes():
 
 def test_portfolio_exports_map_to_existing_classes():
     assert PortfolioBasicMetrics is not PortfolioElementaryMetrics
-    assert PortfolioDownsideMetrics is PortfolioPostModernMetrics
+    assert PortfolioDownsideMetrics is not PortfolioPostModernMetrics
     assert PortfolioBenchmarkAnalysis is PortfolioElementaryAnalysis
     assert Portfolio is not None
     assert PortfolioPerformanceAnalysis is not None
