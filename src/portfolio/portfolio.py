@@ -181,6 +181,10 @@ class Portfolio:
         returns = self.portfolio_returns()
         return float((1.0 + returns).prod() - 1.0)
 
+    def update_weights(self, weights: Iterable[float]) -> None:
+        """Validate and persist a new portfolio allocation in place."""
+        self.weights = self._validate_weights(weights, len(self.tickers))
+
     def with_weights(
         self,
         weights: Iterable[float],

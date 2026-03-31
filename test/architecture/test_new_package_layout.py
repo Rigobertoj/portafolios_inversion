@@ -50,6 +50,8 @@ from src.optimization import (
     MinimumVarianceConfig as NewMinimumVarianceConfig,
     OptimizationConfig as NewOptimizationConfig,
     OptimizationResult as NewOptimizationResult,
+    PortfolioOptimization as LegacyCompatiblePortfolioOptimization,
+    PortfolioOptimizationPostModern as LegacyCompatiblePortfolioOptimizationPostModern,
     PostModernOptimizer,
     PostModernOptimizationConfig as NewPostModernOptimizationConfig,
     PostModernOptimizationResult as NewPostModernOptimizationResult,
@@ -84,15 +86,17 @@ def test_portfolio_exports_map_to_existing_classes():
 
 
 def test_optimization_exports_map_to_existing_classes():
-    assert MeanVarianceOptimizer is PortfolioOptimization
-    assert PostModernOptimizer is PortfolioOptimizationPostModern
-    assert NewOptimizationConfig is OptimizationConfig
-    assert NewMinimumVarianceConfig is MinimumVarianceConfig
-    assert NewOptimizationResult is OptimizationResult
-    assert NewPostModernOptimizationConfig is PostModernOptimizationConfig
-    assert NewMinimumSemivarianceConfig is MinimumSemivarianceConfig
-    assert NewMaximumOmegaConfig is MaximumOmegaConfig
-    assert NewPostModernOptimizationResult is PostModernOptimizationResult
+    assert MeanVarianceOptimizer is not PortfolioOptimization
+    assert PostModernOptimizer is not PortfolioOptimizationPostModern
+    assert NewOptimizationConfig is not OptimizationConfig
+    assert NewMinimumVarianceConfig is not MinimumVarianceConfig
+    assert NewOptimizationResult is not OptimizationResult
+    assert NewPostModernOptimizationConfig is not PostModernOptimizationConfig
+    assert NewMinimumSemivarianceConfig is not MinimumSemivarianceConfig
+    assert NewMaximumOmegaConfig is not MaximumOmegaConfig
+    assert NewPostModernOptimizationResult is not PostModernOptimizationResult
+    assert LegacyCompatiblePortfolioOptimization is PortfolioOptimization
+    assert LegacyCompatiblePortfolioOptimizationPostModern is PortfolioOptimizationPostModern
 
 
 def test_backtesting_exports_map_to_existing_classes():
