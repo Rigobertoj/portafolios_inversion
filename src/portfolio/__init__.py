@@ -12,8 +12,10 @@ from .metrics_downside import (
     PortfolioDownsideMetrics,
     PortfolioPostModernMetrics,
 )
+from .portfolio import Portfolio
 
 __all__ = [
+    "Portfolio",
     "PortfolioBasicMetrics",
     "PortfolioBenchmarkAnalysis",
     "PortfolioDownsideMetrics",

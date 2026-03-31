@@ -55,6 +55,7 @@ from src.optimization import (
     PostModernOptimizationResult as NewPostModernOptimizationResult,
 )
 from src.portfolio import (
+    Portfolio,
     PortfolioBasicMetrics,
     PortfolioBenchmarkAnalysis,
     PortfolioDownsideMetrics,
@@ -77,6 +78,7 @@ def test_portfolio_exports_map_to_existing_classes():
     assert PortfolioBasicMetrics is PortfolioElementaryMetrics
     assert PortfolioDownsideMetrics is PortfolioPostModernMetrics
     assert PortfolioBenchmarkAnalysis is PortfolioElementaryAnalysis
+    assert Portfolio is not None
 
 
 def test_optimization_exports_map_to_existing_classes():
