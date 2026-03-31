@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 
+from .benchmark_analysis import PortfolioBenchmarkAnalysis
 from .metrics_basic import PortfolioBasicMetrics
 from .metrics_downside import PortfolioDownsideMetrics
 from .portfolio import Portfolio
@@ -42,66 +42,13 @@ class PortfolioPerformanceAnalysis:
             portfolio=self.portfolio,
             trading_days=self.trading_days,
         )
-
-    @staticmethod
-    def _normalize_benchmark_series(
-        data: pd.Series | pd.DataFrame,
-        *,
-        label: Optional[str] = None,
-    ) -> pd.Series:
-        if isinstance(data, pd.Series):
-            series = data.sort_index().dropna().copy()
-        elif isinstance(data, pd.DataFrame):
-            cleaned = data.sort_index().dropna().copy()
-            if cleaned.shape[1] != 1:
-                raise ValueError("benchmark data must contain exactly one column.")
-            series = cleaned.iloc[:, 0]
-        else:
-            raise TypeError("benchmark data must be a pandas Series or DataFrame.")
-
-        series = pd.to_numeric(series, errors="coerce").dropna()
-        if series.empty:
-            raise ValueError("benchmark data must contain at least one observation.")
-        if label is not None:
-            series.name = label
-        elif series.name is None:
-            series.name = "Benchmark"
-        return series
-
-    def _resolved_benchmark_returns(self) -> Optional[pd.Series]:
-        if self.benchmark_returns is not None:
-            return self._normalize_benchmark_series(
-                self.benchmark_returns,
-                label=self.benchmark_name,
-            )
-
-        if self.benchmark_prices is not None:
-            prices = self._normalize_benchmark_series(
-                self.benchmark_prices,
-                label=self.benchmark_name,
-            )
-            returns = prices.pct_change().dropna()
-            returns.name = prices.name
-            return returns
-
-        return None
-
-    def _aligned_portfolio_benchmark_returns(self) -> pd.DataFrame:
-        benchmark = self._resolved_benchmark_returns()
-        if benchmark is None:
-            raise ValueError("benchmark returns are required for benchmark metrics.")
-
-        aligned = pd.concat(
-            [
-                self.portfolio.portfolio_returns().rename("portfolio"),
-                benchmark.rename("benchmark"),
-            ],
-            axis=1,
-            join="inner",
-        ).dropna()
-        if len(aligned) < 2:
-            raise ValueError("not enough overlapping returns for benchmark metrics.")
-        return aligned
+        self._benchmark_analysis = PortfolioBenchmarkAnalysis(
+            portfolio=self.portfolio,
+            benchmark_returns=self.benchmark_returns,
+            benchmark_prices=self.benchmark_prices,
+            benchmark_name=self.benchmark_name,
+            trading_days=self.trading_days,
+        )
 
     def expected_return(self) -> float:
         """Return the annualized mean return of the portfolio."""
@@ -172,35 +119,23 @@ class PortfolioPerformanceAnalysis:
 
     def beta(self) -> float:
         """Return the portfolio beta relative to the configured benchmark."""
-        aligned = self._aligned_portfolio_benchmark_returns()
-        benchmark_variance = float(aligned["benchmark"].var())
-        if np.isclose(benchmark_variance, 0.0):
-            return float("nan")
-        covariance = float(aligned["portfolio"].cov(aligned["benchmark"]))
-        return float(covariance / benchmark_variance)
+        return self._benchmark_analysis.portfolio_beta()
 
     def benchmark_annual_return(self) -> float:
         """Return the annualized mean return of the configured benchmark."""
-        benchmark = self._resolved_benchmark_returns()
-        if benchmark is None:
-            return float("nan")
-        return float(benchmark.mean() * self.trading_days)
+        return self._benchmark_analysis.benchmark_annual_return()
 
     def jensen_alpha(self, risk_free_rate: float = 0.0) -> float:
         """Return the Jensen alpha of the portfolio."""
-        beta = self.beta()
-        if np.isnan(beta):
-            return float("nan")
-        market_expected_return = self.benchmark_annual_return()
-        capm_expected = risk_free_rate + beta * (market_expected_return - risk_free_rate)
-        return float(self.expected_return() - capm_expected)
+        return self._benchmark_analysis.portfolio_jensen_alpha(
+            risk_free_rate=risk_free_rate,
+        )
 
     def treynor_ratio(self, risk_free_rate: float = 0.0) -> float:
         """Return the Treynor ratio of the portfolio."""
-        beta = self.beta()
-        if np.isnan(beta) or np.isclose(beta, 0.0):
-            return float("nan")
-        return float((self.expected_return() - risk_free_rate) / beta)
+        return self._benchmark_analysis.portfolio_treynor_ratio(
+            risk_free_rate=risk_free_rate,
+        )
 
     def metrics_table(
         self,
@@ -239,7 +174,7 @@ class PortfolioPerformanceAnalysis:
             ),
         }
 
-        if self._resolved_benchmark_returns() is not None:
+        if self._benchmark_analysis.resolved_benchmark_returns() is not None:
             metrics["Beta"] = self.beta()
             metrics["Alpha de Jensen"] = self.jensen_alpha(
                 risk_free_rate=risk_free_rate,
