@@ -3,16 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
-
-from ..asset_allocation.PortfolioOptimization import (
-    OptimizationResult as LegacyOptimizationResult,
-)
-from ..asset_allocation.PortfolioOptimizationPostModern import (
-    PostModernOptimizationResult as LegacyPostModernOptimizationResult,
-)
 
 
 @dataclass
@@ -33,21 +27,21 @@ class OptimizationResult:
     iterations: int
 
     @classmethod
-    def from_legacy(cls, result: LegacyOptimizationResult) -> "OptimizationResult":
-        """Build a new-layer result from the current legacy solver output."""
+    def from_legacy(cls, result: Any) -> "OptimizationResult":
+        """Build a new-layer result from any solver output with the same fields."""
         return cls(
-            objective=str(result.objective),
-            success=bool(result.success),
-            status=int(result.status),
-            message=str(result.message),
-            weights=np.asarray(result.weights, dtype=float).copy(),
-            weights_by_ticker=result.weights_by_ticker.copy(),
-            expected_return=float(result.expected_return),
-            variance=float(result.variance),
-            volatility=float(result.volatility),
-            sharpe=float(result.sharpe),
-            objective_value=float(result.objective_value),
-            iterations=int(result.iterations),
+            objective=str(getattr(result, "objective")),
+            success=bool(getattr(result, "success")),
+            status=int(getattr(result, "status")),
+            message=str(getattr(result, "message")),
+            weights=np.asarray(getattr(result, "weights"), dtype=float).copy(),
+            weights_by_ticker=getattr(result, "weights_by_ticker").copy(),
+            expected_return=float(getattr(result, "expected_return")),
+            variance=float(getattr(result, "variance")),
+            volatility=float(getattr(result, "volatility")),
+            sharpe=float(getattr(result, "sharpe")),
+            objective_value=float(getattr(result, "objective_value")),
+            iterations=int(getattr(result, "iterations")),
         )
 
 
@@ -71,22 +65,22 @@ class PostModernOptimizationResult:
     @classmethod
     def from_legacy(
         cls,
-        result: LegacyPostModernOptimizationResult,
+        result: Any,
     ) -> "PostModernOptimizationResult":
-        """Build a new-layer result from the current legacy solver output."""
+        """Build a new-layer result from any solver output with the same fields."""
         return cls(
-            objective=str(result.objective),
-            success=bool(result.success),
-            status=int(result.status),
-            message=str(result.message),
-            weights=np.asarray(result.weights, dtype=float).copy(),
-            weights_by_ticker=result.weights_by_ticker.copy(),
-            expected_return=float(result.expected_return),
-            semivariance=float(result.semivariance),
-            downside_risk=float(result.downside_risk),
-            omega=float(result.omega),
-            objective_value=float(result.objective_value),
-            iterations=int(result.iterations),
+            objective=str(getattr(result, "objective")),
+            success=bool(getattr(result, "success")),
+            status=int(getattr(result, "status")),
+            message=str(getattr(result, "message")),
+            weights=np.asarray(getattr(result, "weights"), dtype=float).copy(),
+            weights_by_ticker=getattr(result, "weights_by_ticker").copy(),
+            expected_return=float(getattr(result, "expected_return")),
+            semivariance=float(getattr(result, "semivariance")),
+            downside_risk=float(getattr(result, "downside_risk")),
+            omega=float(getattr(result, "omega")),
+            objective_value=float(getattr(result, "objective_value")),
+            iterations=int(getattr(result, "iterations")),
         )
 
 

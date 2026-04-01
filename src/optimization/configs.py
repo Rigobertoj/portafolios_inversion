@@ -5,38 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, Optional, Sequence, Tuple
 
-from ..asset_allocation.PortfolioOptimization import (
-    MinimumVarianceConfig as LegacyMinimumVarianceConfig,
-)
-from ..asset_allocation.PortfolioOptimization import (
-    OptimizationConfig as LegacyOptimizationConfig,
-)
-from ..asset_allocation.PortfolioOptimizationPostModern import (
-    MaximumOmegaConfig as LegacyMaximumOmegaConfig,
-)
-from ..asset_allocation.PortfolioOptimizationPostModern import (
-    MinimumSemivarianceConfig as LegacyMinimumSemivarianceConfig,
-)
-from ..asset_allocation.PortfolioOptimizationPostModern import (
-    PostModernOptimizationConfig as LegacyPostModernOptimizationConfig,
-)
-
-
-def _copy_bounds(
-    bounds: Optional[Sequence[Tuple[float, float]]],
-) -> Optional[list[tuple[float, float]]]:
-    if bounds is None:
-        return None
-    return [tuple(bound) for bound in bounds]
-
-
-def _copy_initial_weights(
-    initial_weights: Optional[Iterable[float]],
-) -> Optional[list[float]]:
-    if initial_weights is None:
-        return None
-    return [float(weight) for weight in initial_weights]
-
 
 @dataclass
 class OptimizationConfig:
@@ -55,16 +23,14 @@ class OptimizationConfig:
         }
     )
 
-    def to_legacy(self) -> LegacyOptimizationConfig:
-        """Build the legacy config consumed by the current solver backend."""
-        return LegacyOptimizationConfig(
-            risk_free_rate=float(self.risk_free_rate),
-            allow_short=bool(self.allow_short),
-            bounds=_copy_bounds(self.bounds),
-            initial_weights=_copy_initial_weights(self.initial_weights),
-            solver_method=self.solver_method,
-            solver_options=dict(self.solver_options),
-        )
+    def to_legacy(self) -> "OptimizationConfig":
+        """
+        Return a solver-compatible config view.
+
+        The current backend only needs the config attributes, so the new
+        dataclass can be passed directly while the migration remains active.
+        """
+        return self
 
 
 @dataclass
@@ -73,19 +39,9 @@ class MinimumVarianceConfig(OptimizationConfig):
 
     minimum_return: Optional[float] = None
 
-    def to_legacy(self) -> LegacyMinimumVarianceConfig:
-        """Build the legacy minimum-variance config."""
-        return LegacyMinimumVarianceConfig(
-            risk_free_rate=float(self.risk_free_rate),
-            allow_short=bool(self.allow_short),
-            bounds=_copy_bounds(self.bounds),
-            initial_weights=_copy_initial_weights(self.initial_weights),
-            solver_method=self.solver_method,
-            solver_options=dict(self.solver_options),
-            minimum_return=(
-                None if self.minimum_return is None else float(self.minimum_return)
-            ),
-        )
+    def to_legacy(self) -> "MinimumVarianceConfig":
+        """Return a solver-compatible minimum-variance config view."""
+        return self
 
 
 @dataclass
@@ -105,16 +61,9 @@ class PostModernOptimizationConfig:
         }
     )
 
-    def to_legacy(self) -> LegacyPostModernOptimizationConfig:
-        """Build the legacy config consumed by the current solver backend."""
-        return LegacyPostModernOptimizationConfig(
-            threshold=float(self.threshold),
-            allow_short=bool(self.allow_short),
-            bounds=_copy_bounds(self.bounds),
-            initial_weights=_copy_initial_weights(self.initial_weights),
-            solver_method=self.solver_method,
-            solver_options=dict(self.solver_options),
-        )
+    def to_legacy(self) -> "PostModernOptimizationConfig":
+        """Return a solver-compatible post-modern config view."""
+        return self
 
 
 @dataclass
@@ -123,35 +72,18 @@ class MinimumSemivarianceConfig(PostModernOptimizationConfig):
 
     minimum_return: Optional[float] = None
 
-    def to_legacy(self) -> LegacyMinimumSemivarianceConfig:
-        """Build the legacy minimum-semivariance config."""
-        return LegacyMinimumSemivarianceConfig(
-            threshold=float(self.threshold),
-            allow_short=bool(self.allow_short),
-            bounds=_copy_bounds(self.bounds),
-            initial_weights=_copy_initial_weights(self.initial_weights),
-            solver_method=self.solver_method,
-            solver_options=dict(self.solver_options),
-            minimum_return=(
-                None if self.minimum_return is None else float(self.minimum_return)
-            ),
-        )
+    def to_legacy(self) -> "MinimumSemivarianceConfig":
+        """Return a solver-compatible minimum-semivariance config view."""
+        return self
 
 
 @dataclass
 class MaximumOmegaConfig(PostModernOptimizationConfig):
     """Configuration for the maximum-Omega optimization routine."""
 
-    def to_legacy(self) -> LegacyMaximumOmegaConfig:
-        """Build the legacy maximum-Omega config."""
-        return LegacyMaximumOmegaConfig(
-            threshold=float(self.threshold),
-            allow_short=bool(self.allow_short),
-            bounds=_copy_bounds(self.bounds),
-            initial_weights=_copy_initial_weights(self.initial_weights),
-            solver_method=self.solver_method,
-            solver_options=dict(self.solver_options),
-        )
+    def to_legacy(self) -> "MaximumOmegaConfig":
+        """Return a solver-compatible maximum-Omega config view."""
+        return self
 
 
 __all__ = [
