@@ -1,6 +1,6 @@
-"""Public portfolio API built from the existing asset-allocation modules."""
+"""Public portfolio API built around the new portfolio package layout."""
 
-from ..asset_allocation import (
+from .legacy_adapters import (
     PortfolioElementaryAnalysis,
     PortfolioElementaryMetrics,
     PortfolioPostModernMetrics,
