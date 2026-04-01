@@ -1,6 +1,6 @@
-"""Snake-case compatibility wrapper for the legacy asset research module."""
+"""Snake-case compatibility wrapper for the new research implementation."""
 
-from .AssetsResearch import AssetsResearch
+from ..research.assets_research import AssetsResearch
 
 __all__ = [
     "AssetsResearch",

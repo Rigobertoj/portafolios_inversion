@@ -1,6 +1,6 @@
-"""Snake-case compatibility wrapper for the legacy selector module."""
+"""Snake-case compatibility wrapper for the new selection implementation."""
 
-from .CorrelationPortfolioSelector import CorrelationPortfolioSelector
+from ..selection.correlation_selector import CorrelationPortfolioSelector
 
 __all__ = [
     "CorrelationPortfolioSelector",
