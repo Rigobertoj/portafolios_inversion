@@ -8,6 +8,8 @@ from src.optimization import (
     MinimumSemivarianceConfig,
     MinimumVarianceConfig,
     OptimizationResult,
+    PortfolioOptimization as NewPortfolioOptimization,
+    PortfolioOptimizationPostModern as NewPortfolioOptimizationPostModern,
     PostModernOptimizationResult,
     PostModernOptimizer,
 )
@@ -81,6 +83,25 @@ def test_mean_variance_optimizer_updates_shared_portfolio_weights():
     assert np.isclose(result.volatility, legacy_result.volatility)
 
 
+def test_direct_mean_variance_compatibility_optimizer_matches_legacy_solver():
+    optimizer = NewPortfolioOptimization(
+        ["AAA", "BBB", "CCC"],
+        start="2024-01-01",
+        end="2024-01-07",
+        weight=np.array([1 / 3, 1 / 3, 1 / 3]),
+    )
+    optimizer._set_prices_cache(_sample_prices())
+    optimizer._set_returns_cache(_sample_prices().pct_change().dropna())
+
+    result = optimizer.optimize_minimum_variance()
+    legacy_result = _legacy_mean_variance_optimizer().optimize_minimum_variance()
+
+    assert isinstance(result, OptimizationResult)
+    np.testing.assert_allclose(result.weights, legacy_result.weights)
+    assert np.isclose(result.variance, legacy_result.variance)
+    assert np.isclose(result.volatility, legacy_result.volatility)
+
+
 def test_mean_variance_optimizer_supports_maximum_sharpe_configs():
     portfolio = Portfolio(
         prices=_sample_prices(),
@@ -115,6 +136,25 @@ def test_postmodern_optimizer_updates_shared_portfolio_weights():
     assert isinstance(result, PostModernOptimizationResult)
     assert result.success
     np.testing.assert_allclose(portfolio.weight, result.weights)
+    np.testing.assert_allclose(result.weights, legacy_result.weights)
+    assert np.isclose(result.semivariance, legacy_result.semivariance)
+    assert np.isclose(result.downside_risk, legacy_result.downside_risk)
+
+
+def test_direct_postmodern_compatibility_optimizer_matches_legacy_solver():
+    optimizer = NewPortfolioOptimizationPostModern(
+        ["AAA", "BBB", "CCC"],
+        start="2024-01-01",
+        end="2024-01-07",
+        weight=np.array([1 / 3, 1 / 3, 1 / 3]),
+    )
+    optimizer._set_prices_cache(_sample_prices())
+    optimizer._set_returns_cache(_sample_prices().pct_change().dropna())
+
+    result = optimizer.optimize_minimum_semivariance()
+    legacy_result = _legacy_postmodern_optimizer().optimize_minimum_semivariance()
+
+    assert isinstance(result, PostModernOptimizationResult)
     np.testing.assert_allclose(result.weights, legacy_result.weights)
     assert np.isclose(result.semivariance, legacy_result.semivariance)
     assert np.isclose(result.downside_risk, legacy_result.downside_risk)

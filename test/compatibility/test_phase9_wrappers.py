@@ -9,9 +9,9 @@ from src.portfolio_utils.pdf_image_converter import (
     convert_pdf_to_images as SnakeConvertPdfToImages,
 )
 from src.research import AssetsResearch as ResearchAssetsResearch
-from src.security_selection import (
-    AssetsResearch as LegacyAssetsResearch,
-    CorrelationPortfolioSelector as LegacyCorrelationSelector,
+from src.security_selection.AssetsResearch import AssetsResearch as PascalAssetsResearch
+from src.security_selection.CorrelationPortfolioSelector import (
+    CorrelationPortfolioSelector as PascalCorrelationSelector,
 )
 from src.security_selection.assets_research import AssetsResearch as SnakeAssetsResearch
 from src.security_selection.correlation_portfolio_selector import (
@@ -21,10 +21,10 @@ from src.selection import CorrelationPortfolioSelector as SelectionCorrelationSe
 
 
 def test_snake_case_security_selection_modules_preserve_legacy_exports():
-    assert SnakeAssetsResearch is LegacyAssetsResearch
-    assert ResearchAssetsResearch is LegacyAssetsResearch
-    assert SnakeCorrelationSelector is LegacyCorrelationSelector
-    assert SelectionCorrelationSelector is LegacyCorrelationSelector
+    assert SnakeAssetsResearch is ResearchAssetsResearch
+    assert issubclass(PascalAssetsResearch, ResearchAssetsResearch)
+    assert SnakeCorrelationSelector is PascalCorrelationSelector
+    assert SelectionCorrelationSelector is PascalCorrelationSelector
 
 
 def test_snake_case_portfolio_utils_module_preserves_public_functions():

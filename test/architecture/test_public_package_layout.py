@@ -20,6 +20,8 @@ from src.optimization import (
     MinimumVarianceConfig,
     OptimizationConfig,
     OptimizationResult,
+    PortfolioOptimization,
+    PortfolioOptimizationPostModern,
     PostModernOptimizer,
     PostModernOptimizationResult,
 )
@@ -83,6 +85,9 @@ def test_research_and_selection_public_api_is_available():
     assert AssetsResearch is not None
     assert CorrelationPortfolioSelector is not None
     assert CorrelationSelector is not None
+    assert AssetsResearch.__module__ == "src.research.assets_research"
+    assert CorrelationPortfolioSelector.__module__ == "src.selection.correlation_selector"
+    assert CorrelationSelector.__module__ == "src.selection.correlation_selector"
 
 
 def test_portfolio_and_optimization_exports_use_new_modules():
@@ -92,7 +97,9 @@ def test_portfolio_and_optimization_exports_use_new_modules():
     assert PortfolioBenchmarkAnalysis.__module__ == "src.portfolio.benchmark_analysis"
     assert PortfolioPerformanceAnalysis.__module__ == "src.portfolio.performance_analysis"
     assert MeanVarianceOptimizer.__module__ == "src.optimization.mean_variance"
+    assert PortfolioOptimization.__module__ == "src.optimization.mean_variance"
     assert PostModernOptimizer.__module__ == "src.optimization.postmodern"
+    assert PortfolioOptimizationPostModern.__module__ == "src.optimization.postmodern"
     assert OptimizationConfig.__module__ == "src.optimization.configs"
     assert MinimumVarianceConfig.__module__ == "src.optimization.configs"
     assert OptimizationResult.__module__ == "src.optimization.results"

@@ -64,15 +64,15 @@ from src.portfolio import (
     PortfolioPerformanceAnalysis,
 )
 from src.research import AssetsResearch
-from src.security_selection import (
-    AssetsResearch as LegacyAssetsResearch,
+from src.security_selection.AssetsResearch import AssetsResearch as LegacyAssetsResearch
+from src.security_selection.CorrelationPortfolioSelector import (
     CorrelationPortfolioSelector as LegacyCorrelationPortfolioSelector,
 )
 from src.selection import CorrelationPortfolioSelector, CorrelationSelector
 
 
 def test_research_and_selection_exports_map_to_existing_classes():
-    assert AssetsResearch is LegacyAssetsResearch
+    assert issubclass(LegacyAssetsResearch, AssetsResearch)
     assert CorrelationPortfolioSelector is LegacyCorrelationPortfolioSelector
     assert CorrelationSelector is LegacyCorrelationPortfolioSelector
 
@@ -95,8 +95,13 @@ def test_optimization_exports_map_to_existing_classes():
     assert NewMinimumSemivarianceConfig is not MinimumSemivarianceConfig
     assert NewMaximumOmegaConfig is not MaximumOmegaConfig
     assert NewPostModernOptimizationResult is not PostModernOptimizationResult
-    assert LegacyCompatiblePortfolioOptimization is PortfolioOptimization
-    assert LegacyCompatiblePortfolioOptimizationPostModern is PortfolioOptimizationPostModern
+    assert LegacyCompatiblePortfolioOptimization is not PortfolioOptimization
+    assert LegacyCompatiblePortfolioOptimizationPostModern is not PortfolioOptimizationPostModern
+    assert LegacyCompatiblePortfolioOptimization.__module__ == "src.optimization.mean_variance"
+    assert (
+        LegacyCompatiblePortfolioOptimizationPostModern.__module__
+        == "src.optimization.postmodern"
+    )
 
 
 def test_backtesting_exports_map_to_existing_classes():
