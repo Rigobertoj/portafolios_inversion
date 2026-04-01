@@ -61,7 +61,10 @@ from src.portfolio import (
     PortfolioBasicMetrics,
     PortfolioBenchmarkAnalysis,
     PortfolioDownsideMetrics,
+    PortfolioElementaryAnalysis as NewLegacyPortfolioElementaryAnalysis,
+    PortfolioElementaryMetrics as NewLegacyPortfolioElementaryMetrics,
     PortfolioPerformanceAnalysis,
+    PortfolioPostModernMetrics as NewLegacyPortfolioPostModernMetrics,
 )
 from src.research import AssetsResearch
 from src.security_selection.AssetsResearch import AssetsResearch as LegacyAssetsResearch
@@ -81,6 +84,12 @@ def test_portfolio_exports_map_to_existing_classes():
     assert PortfolioBasicMetrics is not PortfolioElementaryMetrics
     assert PortfolioDownsideMetrics is not PortfolioPostModernMetrics
     assert PortfolioBenchmarkAnalysis is not PortfolioElementaryAnalysis
+    assert NewLegacyPortfolioElementaryMetrics is PortfolioElementaryMetrics
+    assert NewLegacyPortfolioPostModernMetrics is PortfolioPostModernMetrics
+    assert NewLegacyPortfolioElementaryAnalysis is PortfolioElementaryAnalysis
+    assert PortfolioElementaryMetrics.__module__ == "src.portfolio.legacy_adapters"
+    assert PortfolioPostModernMetrics.__module__ == "src.portfolio.legacy_adapters"
+    assert PortfolioElementaryAnalysis.__module__ == "src.portfolio.legacy_adapters"
     assert Portfolio is not None
     assert PortfolioPerformanceAnalysis is not None
 
@@ -88,20 +97,17 @@ def test_portfolio_exports_map_to_existing_classes():
 def test_optimization_exports_map_to_existing_classes():
     assert MeanVarianceOptimizer is not PortfolioOptimization
     assert PostModernOptimizer is not PortfolioOptimizationPostModern
-    assert NewOptimizationConfig is not OptimizationConfig
-    assert NewMinimumVarianceConfig is not MinimumVarianceConfig
-    assert NewOptimizationResult is not OptimizationResult
-    assert NewPostModernOptimizationConfig is not PostModernOptimizationConfig
-    assert NewMinimumSemivarianceConfig is not MinimumSemivarianceConfig
-    assert NewMaximumOmegaConfig is not MaximumOmegaConfig
-    assert NewPostModernOptimizationResult is not PostModernOptimizationResult
-    assert LegacyCompatiblePortfolioOptimization is not PortfolioOptimization
-    assert LegacyCompatiblePortfolioOptimizationPostModern is not PortfolioOptimizationPostModern
-    assert LegacyCompatiblePortfolioOptimization.__module__ == "src.optimization.mean_variance"
-    assert (
-        LegacyCompatiblePortfolioOptimizationPostModern.__module__
-        == "src.optimization.postmodern"
-    )
+    assert NewOptimizationConfig is OptimizationConfig
+    assert NewMinimumVarianceConfig is MinimumVarianceConfig
+    assert NewOptimizationResult is OptimizationResult
+    assert NewPostModernOptimizationConfig is PostModernOptimizationConfig
+    assert NewMinimumSemivarianceConfig is MinimumSemivarianceConfig
+    assert NewMaximumOmegaConfig is MaximumOmegaConfig
+    assert NewPostModernOptimizationResult is PostModernOptimizationResult
+    assert LegacyCompatiblePortfolioOptimization is PortfolioOptimization
+    assert LegacyCompatiblePortfolioOptimizationPostModern is PortfolioOptimizationPostModern
+    assert PortfolioOptimization.__module__ == "src.optimization.mean_variance"
+    assert PortfolioOptimizationPostModern.__module__ == "src.optimization.postmodern"
 
 
 def test_backtesting_exports_map_to_existing_classes():
