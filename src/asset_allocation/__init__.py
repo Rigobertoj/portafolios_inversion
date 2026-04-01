@@ -1,3 +1,5 @@
+"""Legacy compatibility exports for the historical asset-allocation package."""
+
 from .PortfolioElementaryMetrics import PortfolioElementaryMetrics
 
 from .PortfolioOptimization import (
