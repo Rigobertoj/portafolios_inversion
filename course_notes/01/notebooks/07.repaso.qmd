@@ -38,7 +38,7 @@ import seaborn as sns
 
 sns.set_style("darkgrid")
 
-from portfolio_utils import AssetsResearch
+from src.research import AssetsResearch
 import yfinance as yf
 
 try:

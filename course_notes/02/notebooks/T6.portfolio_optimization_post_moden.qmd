@@ -47,8 +47,8 @@ if str(PROJECT_ROOT) not in sys.path:
 ```
 
 ```{python}
-from src.asset_allocation import PortfolioOptimization
-from src.asset_allocation import MinimumVarianceConfig
+from src.optimization import PortfolioOptimization
+from src.optimization import MinimumVarianceConfig
 ```
 
 ## A) Implementación de funciones
