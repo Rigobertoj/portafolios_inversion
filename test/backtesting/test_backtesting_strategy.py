@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.asset_allocation import OptimizationConfig
-from src.managment_risk import (
+from src.backtesting import (
     BacktestConfig,
     Backtester,
     MeanVarianceStrategy,
     PostModernStrategy,
 )
+from src.optimization import OptimizationConfig
 
 
 def _sample_prices() -> pd.DataFrame:

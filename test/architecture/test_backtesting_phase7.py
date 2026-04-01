@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from src.asset_allocation import OptimizationConfig
 from src.backtesting import (
     BacktestConfig,
     Backtester,
     MeanVarianceStrategy,
     PostModernStrategy,
 )
+from src.optimization import OptimizationConfig
 
 
 def _sample_prices() -> pd.DataFrame:

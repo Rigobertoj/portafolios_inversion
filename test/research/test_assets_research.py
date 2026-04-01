@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.security_selection import AssetsResearch
+from src.research import AssetsResearch
 
-assets_research_module = importlib.import_module("src.security_selection.AssetsResearch")
+assets_research_module = importlib.import_module(AssetsResearch.__module__)
 
 
 def _sample_prices() -> pd.DataFrame:
