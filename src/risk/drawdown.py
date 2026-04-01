@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from ..portfolio import Portfolio
+from ..portfolio.portfolio import Portfolio
 
 
 @dataclass

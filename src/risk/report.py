@@ -7,7 +7,7 @@ from typing import Optional
 
 import pandas as pd
 
-from ..portfolio import Portfolio
+from ..portfolio.portfolio import Portfolio
 from .drawdown import PortfolioDrawdownAnalysis
 from .tracking import PortfolioRelativeRisk
 from .var_cvar import PortfolioTailRisk

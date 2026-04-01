@@ -8,7 +8,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..portfolio import Portfolio, PortfolioBenchmarkAnalysis
+from ..portfolio.benchmark_analysis import PortfolioBenchmarkAnalysis
+from ..portfolio.portfolio import Portfolio
 
 
 @dataclass

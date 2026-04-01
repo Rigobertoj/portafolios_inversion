@@ -7,15 +7,15 @@ from typing import Optional
 
 import pandas as pd
 
-from ..optimization import (
+from ..optimization.configs import (
     MaximumOmegaConfig,
-    MeanVarianceOptimizer,
     MinimumSemivarianceConfig,
     MinimumVarianceConfig,
     OptimizationConfig,
     PostModernOptimizationConfig,
-    PostModernOptimizer,
 )
+from ..optimization.mean_variance import MeanVarianceOptimizer
+from ..optimization.postmodern import PostModernOptimizer
 from ._helpers import build_portfolio, normalize_benchmark_prices
 from .results import StrategyAllocation
 

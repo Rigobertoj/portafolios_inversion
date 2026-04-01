@@ -8,7 +8,7 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
-from ..research import AssetsResearch
+from ..research.assets_research import AssetsResearch
 
 
 @dataclass

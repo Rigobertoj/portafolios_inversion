@@ -8,7 +8,6 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
-from ..asset_allocation.PortfolioElementaryMetrics import PortfolioElementaryMetrics
 from .portfolio import Portfolio
 
 
@@ -120,5 +119,4 @@ class PortfolioBasicMetrics:
 
 __all__ = [
     "PortfolioBasicMetrics",
-    "PortfolioElementaryMetrics",
 ]

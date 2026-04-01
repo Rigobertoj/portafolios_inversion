@@ -8,7 +8,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..asset_allocation.PortfolioPostModernMetrics import PortfolioPostModernMetrics
 from .metrics_basic import PortfolioBasicMetrics
 from .portfolio import Portfolio
 
@@ -216,5 +215,4 @@ class PortfolioDownsideMetrics:
 
 __all__ = [
     "PortfolioDownsideMetrics",
-    "PortfolioPostModernMetrics",
 ]

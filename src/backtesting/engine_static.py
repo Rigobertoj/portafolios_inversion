@@ -7,7 +7,7 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from ..research import AssetsResearch
+from ..research.assets_research import AssetsResearch
 from ._helpers import normalize_benchmark_prices, normalize_prices, slice_time_window
 from .results import (
     BacktestConfig,

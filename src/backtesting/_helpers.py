@@ -7,7 +7,7 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
-from ..portfolio import Portfolio
+from ..portfolio.portfolio import Portfolio
 
 
 def default_weights(n_assets: int) -> np.ndarray:

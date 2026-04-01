@@ -1,16 +1,18 @@
 """Public portfolio API built from the existing asset-allocation modules."""
 
+from ..asset_allocation import (
+    PortfolioElementaryAnalysis,
+    PortfolioElementaryMetrics,
+    PortfolioPostModernMetrics,
+)
 from .benchmark_analysis import (
     PortfolioBenchmarkAnalysis,
-    PortfolioElementaryAnalysis,
 )
 from .metrics_basic import (
     PortfolioBasicMetrics,
-    PortfolioElementaryMetrics,
 )
 from .metrics_downside import (
     PortfolioDownsideMetrics,
-    PortfolioPostModernMetrics,
 )
 from .performance_analysis import PortfolioPerformanceAnalysis
 from .portfolio import Portfolio
