@@ -4,10 +4,12 @@ from .drawdown import PortfolioDrawdownAnalysis
 from .report import RiskAnalyzer
 from .tracking import PortfolioRelativeRisk
 from .var_cvar import PortfolioTailRisk
+from .volatility import PortfolioVolatilityAnalysis
 
 __all__ = [
     "PortfolioDrawdownAnalysis",
     "PortfolioRelativeRisk",
     "PortfolioTailRisk",
+    "PortfolioVolatilityAnalysis",
     "RiskAnalyzer",
 ]

@@ -11,6 +11,7 @@ from ..portfolio.portfolio import Portfolio
 from .drawdown import PortfolioDrawdownAnalysis
 from .tracking import PortfolioRelativeRisk
 from .var_cvar import PortfolioTailRisk
+from .volatility import PortfolioVolatilityAnalysis
 
 
 @dataclass
@@ -33,6 +34,10 @@ class RiskAnalyzer:
             raise ValueError("trading_days must be greater than zero.")
         self._drawdown = PortfolioDrawdownAnalysis(portfolio=self.portfolio)
         self._tail_risk = PortfolioTailRisk(portfolio=self.portfolio)
+        self._volatility = PortfolioVolatilityAnalysis(
+            portfolio=self.portfolio,
+            trading_days=self.trading_days,
+        )
         self._relative_risk = PortfolioRelativeRisk(
             portfolio=self.portfolio,
             benchmark_returns=self.benchmark_returns,
@@ -60,6 +65,78 @@ class RiskAnalyzer:
     def historical_cvar(self, confidence_level: float = 0.95) -> float:
         """Return the historical daily Conditional Value at Risk."""
         return self._tail_risk.historical_cvar(confidence_level=confidence_level)
+
+    def historical_variance(self) -> float:
+        """Return the annualized historical variance of the portfolio."""
+        return self._volatility.historical_variance()
+
+    def historical_volatility(self) -> float:
+        """Return the annualized historical volatility of the portfolio."""
+        return self._volatility.historical_volatility()
+
+    def ewma_variance_series(
+        self,
+        decay: float = 0.94,
+        *,
+        mean_adjust: bool = False,
+        annualize: bool = False,
+        initial_variance: Optional[float] = None,
+    ) -> pd.Series:
+        """Return the EWMA variance series of the portfolio."""
+        return self._volatility.ewma_variance_series(
+            decay=decay,
+            mean_adjust=mean_adjust,
+            annualize=annualize,
+            initial_variance=initial_variance,
+        )
+
+    def ewma_volatility_series(
+        self,
+        decay: float = 0.94,
+        *,
+        mean_adjust: bool = False,
+        annualize: bool = True,
+        initial_variance: Optional[float] = None,
+    ) -> pd.Series:
+        """Return the EWMA volatility series of the portfolio."""
+        return self._volatility.ewma_volatility_series(
+            decay=decay,
+            mean_adjust=mean_adjust,
+            annualize=annualize,
+            initial_variance=initial_variance,
+        )
+
+    def latest_ewma_variance(
+        self,
+        decay: float = 0.94,
+        *,
+        mean_adjust: bool = False,
+        annualize: bool = False,
+        initial_variance: Optional[float] = None,
+    ) -> float:
+        """Return the latest EWMA variance estimate of the portfolio."""
+        return self._volatility.latest_ewma_variance(
+            decay=decay,
+            mean_adjust=mean_adjust,
+            annualize=annualize,
+            initial_variance=initial_variance,
+        )
+
+    def latest_ewma_volatility(
+        self,
+        decay: float = 0.94,
+        *,
+        mean_adjust: bool = False,
+        annualize: bool = True,
+        initial_variance: Optional[float] = None,
+    ) -> float:
+        """Return the latest EWMA volatility estimate of the portfolio."""
+        return self._volatility.latest_ewma_volatility(
+            decay=decay,
+            mean_adjust=mean_adjust,
+            annualize=annualize,
+            initial_variance=initial_variance,
+        )
 
     def active_returns(self) -> pd.Series:
         """Return the aligned active-return series against the configured benchmark."""
