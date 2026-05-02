@@ -6,6 +6,7 @@ from src.risk import (
     PortfolioDrawdownAnalysis,
     PortfolioRelativeRisk,
     PortfolioTailRisk,
+    PortfolioVolatilityAnalysis,
     RiskAnalyzer,
 )
 
@@ -35,6 +36,7 @@ def test_risk_exports_are_available_from_public_api():
     assert PortfolioDrawdownAnalysis.__module__ == "src.risk.drawdown"
     assert PortfolioTailRisk.__module__ == "src.risk.var_cvar"
     assert PortfolioRelativeRisk.__module__ == "src.risk.tracking"
+    assert PortfolioVolatilityAnalysis.__module__ == "src.risk.volatility"
     assert RiskAnalyzer.__module__ == "src.risk.report"
 
 
@@ -77,6 +79,65 @@ def test_tail_risk_matches_manual_formulas():
     assert np.isclose(
         tail_risk.historical_cvar(confidence_level=0.95),
         expected_cvar,
+    )
+
+
+def test_volatility_analysis_matches_manual_ewma_formulas():
+    portfolio = Portfolio(
+        prices=_sample_prices(),
+        weights=np.array([0.5, 0.3, 0.2]),
+        name="Demo",
+    )
+    volatility = PortfolioVolatilityAnalysis(
+        portfolio=portfolio,
+        trading_days=252,
+    )
+    analyzer = RiskAnalyzer(portfolio=portfolio)
+
+    portfolio_returns = portfolio.portfolio_returns()
+    squared_returns = portfolio_returns.pow(2).to_numpy(dtype=float)
+
+    expected_variance = np.empty(len(squared_returns), dtype=float)
+    expected_variance[0] = squared_returns[0]
+    for idx in range(1, len(squared_returns)):
+        expected_variance[idx] = (
+            0.94 * expected_variance[idx - 1] + 0.06 * squared_returns[idx]
+        )
+
+    expected_variance_series = pd.Series(
+        expected_variance,
+        index=portfolio_returns.index,
+        name="Demo",
+    )
+    expected_volatility_series = (expected_variance_series * 252.0).pow(0.5)
+    expected_volatility_series.name = "Demo"
+    expected_historical_variance = portfolio_returns.var() * 252.0
+    expected_historical_volatility = portfolio_returns.std() * np.sqrt(252.0)
+
+    pd.testing.assert_series_equal(
+        volatility.ewma_variance_series(decay=0.94),
+        expected_variance_series,
+    )
+    pd.testing.assert_series_equal(
+        volatility.ewma_volatility_series(decay=0.94),
+        expected_volatility_series,
+    )
+    assert np.isclose(volatility.historical_variance(), expected_historical_variance)
+    assert np.isclose(
+        volatility.historical_volatility(),
+        expected_historical_volatility,
+    )
+    assert np.isclose(
+        analyzer.latest_ewma_variance(decay=0.94),
+        expected_variance_series.iloc[-1],
+    )
+    assert np.isclose(
+        analyzer.latest_ewma_volatility(decay=0.94),
+        expected_volatility_series.iloc[-1],
+    )
+    assert np.isclose(
+        analyzer.historical_volatility(),
+        expected_historical_volatility,
     )
 
 
