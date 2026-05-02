@@ -94,9 +94,9 @@ This repository follows a consistent pipeline:
 │   ├── processed/
 │   └── raw/
 ├── docs/
-│   ├── asset_allocation/
-│   ├── managment_risk/
-│   ├── security_selection/
+│   ├── backtesting/
+│   ├── optimization/
+│   ├── portfolio_optimization_architecture.md
 │   └── selection/
 ├── research/
 │   ├── 01.20250212.min_corelacion_research.ipynb
