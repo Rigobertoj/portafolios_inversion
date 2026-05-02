@@ -32,21 +32,46 @@ from src.portfolio import (
     PortfolioDownsideMetrics,
     PortfolioPerformanceAnalysis,
 )
-from src.research import AssetsResearch
+from src.research import ARIMAResearch, AssetsResearch
 from src.risk import (
     PortfolioDrawdownAnalysis,
     PortfolioRelativeRisk,
     PortfolioTailRisk,
+    PortfolioVolatilityAnalysis,
     RiskAnalyzer,
 )
-from src.selection import CorrelationPortfolioSelector, CorrelationSelector
+from src.selection import (
+    CorrelationPortfolioSelector,
+    CorrelationSelector,
+    FundamentalData,
+    FundamentalScoreConfig,
+    FundamentalSelector,
+    GrowthScoreConfig,
+    ValueScoreConfig,
+    YahooFundamentalsProvider,
+    build_fundamental_metric_history,
+    build_metric_history_frame,
+    score_fundamentals_over_time,
+)
 
 
 def test_public_packages_expose_expected_symbols():
-    assert set(research_package.__all__) == {"AssetsResearch"}
+    assert set(research_package.__all__) == {"ARIMAResearch", "AssetsResearch"}
     assert set(selection_package.__all__) == {
         "CorrelationPortfolioSelector",
         "CorrelationSelector",
+        "FundamentalData",
+        "FundamentalScoreConfig",
+        "FundamentalSelector",
+        "GrowthScoreConfig",
+        "ValueScoreConfig",
+        "YahooFundamentalsProvider",
+        "build_fundamental_metric_history",
+        "build_fundamental_metrics",
+        "build_metric_history_frame",
+        "build_metrics_frame",
+        "score_fundamentals",
+        "score_fundamentals_over_time",
     }
     assert {
         "Portfolio",
@@ -77,17 +102,35 @@ def test_public_packages_expose_expected_symbols():
         "PortfolioDrawdownAnalysis",
         "PortfolioRelativeRisk",
         "PortfolioTailRisk",
+        "PortfolioVolatilityAnalysis",
         "RiskAnalyzer",
     }.issubset(set(risk_package.__all__))
 
 
 def test_research_and_selection_public_api_is_available():
     assert AssetsResearch is not None
+    assert ARIMAResearch is not None
     assert CorrelationPortfolioSelector is not None
     assert CorrelationSelector is not None
+    assert FundamentalSelector is not None
+    assert FundamentalData is not None
+    assert FundamentalScoreConfig is not None
+    assert GrowthScoreConfig is not None
+    assert ValueScoreConfig is not None
+    assert YahooFundamentalsProvider is not None
+    assert build_fundamental_metric_history is not None
+    assert build_metric_history_frame is not None
+    assert score_fundamentals_over_time is not None
+    assert ARIMAResearch.__module__ == "src.research.arima_research"
     assert AssetsResearch.__module__ == "src.research.assets_research"
     assert CorrelationPortfolioSelector.__module__ == "src.selection.correlation_selector"
     assert CorrelationSelector.__module__ == "src.selection.correlation_selector"
+    assert FundamentalSelector.__module__ == "src.selection.fundamental_selector"
+    assert FundamentalData.__module__ == "src.selection.fundamentals"
+    assert FundamentalScoreConfig.__module__ == "src.selection.fundamental_scorers"
+    assert GrowthScoreConfig.__module__ == "src.selection.fundamental_scorers"
+    assert ValueScoreConfig.__module__ == "src.selection.fundamental_scorers"
+    assert YahooFundamentalsProvider.__module__ == "src.selection.fundamentals"
 
 
 def test_portfolio_and_optimization_exports_use_new_modules():
@@ -119,4 +162,5 @@ def test_backtesting_and_risk_exports_use_new_modules():
     assert PortfolioDrawdownAnalysis.__module__ == "src.risk.drawdown"
     assert PortfolioTailRisk.__module__ == "src.risk.var_cvar"
     assert PortfolioRelativeRisk.__module__ == "src.risk.tracking"
+    assert PortfolioVolatilityAnalysis.__module__ == "src.risk.volatility"
     assert RiskAnalyzer.__module__ == "src.risk.report"
