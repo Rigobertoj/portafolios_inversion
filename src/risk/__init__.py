@@ -1,4 +1,9 @@
-"""Public risk API built on the portfolio composition layer."""
+"""Public API for portfolio risk analysis.
+
+The package exports focused analyzers for drawdown, volatility, tail risk, and
+benchmark-relative risk, plus `RiskAnalyzer` as an aggregate report-oriented
+facade.
+"""
 
 from .drawdown import PortfolioDrawdownAnalysis
 from .report import RiskAnalyzer

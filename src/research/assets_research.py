@@ -1,4 +1,8 @@
-"""Asset-level market research utilities for the new package layout."""
+"""Asset-level market research utilities.
+
+This module downloads price data, caches prices and returns, and exposes
+descriptive per-asset metrics used throughout the portfolio package.
+"""
 
 from __future__ import annotations
 
@@ -29,6 +33,22 @@ class AssetsResearch:
 
     The class keeps the legacy public surface used across the project while
     relocating the actual implementation to `src.research`.
+
+    Parameters
+    ----------
+    tickers : iterable of str
+        Asset symbols requested from the data provider.
+    start : str
+        First date requested for market data.
+    end : str, optional
+        Optional exclusive end date requested for market data.
+    price_field : str, default "Close"
+        Yahoo Finance price column used to build the research dataset.
+
+    Raises
+    ------
+    ValueError
+        If tickers are empty, dates are invalid, or `price_field` is blank.
     """
 
     def __init__(
@@ -191,7 +211,20 @@ class AssetsResearch:
         self.__returns = value.copy()
 
     def download_prices(self) -> pd.DataFrame:
-        """Download market prices and cache them inside the instance."""
+        """
+        Download market prices and cache them inside the instance.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Clean price table indexed by date.
+
+        Raises
+        ------
+        ValueError
+            If the configured price field is missing or the provider returns no
+            usable price data.
+        """
         data = yf.download(
             self.tickers,
             start=self.start,
@@ -228,7 +261,14 @@ class AssetsResearch:
         return self.prices
 
     def compute_returns(self) -> pd.DataFrame:
-        """Compute daily percentage returns from cached prices."""
+        """
+        Compute daily percentage returns from cached prices.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Daily percentage returns indexed by date.
+        """
         if self.prices.empty:
             self.download_prices()
 
@@ -239,7 +279,19 @@ class AssetsResearch:
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.DataFrame:
-        """Return cached prices for all tickers or a validated subset."""
+        """
+        Return cached prices for all tickers or a validated subset.
+
+        Parameters
+        ----------
+        tickers : str or sequence of str, optional
+            Ticker subset to select from cached prices.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Price table for the requested tickers.
+        """
         if self.prices.empty:
             self.download_prices()
         return self._select_columns(self.prices, self._normalize_select(tickers))
@@ -248,7 +300,19 @@ class AssetsResearch:
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.DataFrame:
-        """Return cached returns for all tickers or a validated subset."""
+        """
+        Return cached returns for all tickers or a validated subset.
+
+        Parameters
+        ----------
+        tickers : str or sequence of str, optional
+            Ticker subset to select from cached returns.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Return table for the requested tickers.
+        """
         if self.returns.empty:
             self.compute_returns()
         return self._select_columns(self.returns, self._normalize_select(tickers))
@@ -257,28 +321,56 @@ class AssetsResearch:
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.Series:
-        """Return annualized expected returns using 252 trading days."""
+        """
+        Return annualized expected returns using 252 trading days.
+
+        Returns
+        -------
+        pandas.Series
+            Mean daily returns multiplied by 252.
+        """
         return self.get_returns(tickers).mean() * 252
 
     def annual_volatility(
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.Series:
-        """Return annualized volatility using 252 trading days."""
+        """
+        Return annualized volatility using 252 trading days.
+
+        Returns
+        -------
+        pandas.Series
+            Daily return standard deviations annualized by `sqrt(252)`.
+        """
         return self.get_returns(tickers).std() * np.sqrt(252)
 
     def skew(
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.Series:
-        """Return skewness of daily returns."""
+        """
+        Return skewness of daily returns.
+
+        Returns
+        -------
+        pandas.Series
+            Skewness by ticker.
+        """
         return self.get_returns(tickers).skew()
 
     def vol_over_mean(
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.Series:
-        """Return annualized volatility divided by annualized return."""
+        """
+        Return annualized volatility divided by annualized return.
+
+        Returns
+        -------
+        pandas.Series
+            Volatility-to-return coefficient by ticker.
+        """
         annual_ret = self.annual_return(tickers)
         annual_vol = self.annual_volatility(tickers)
         return annual_vol / annual_ret.replace(0, np.nan)
@@ -288,7 +380,21 @@ class AssetsResearch:
         tickers: Optional[Union[str, Sequence[str]]] = None,
         z: float = 2.65,
     ) -> pd.DataFrame:
-        """Estimate a simple annual return interval in percentage terms."""
+        """
+        Estimate a simple annual return interval in percentage terms.
+
+        Parameters
+        ----------
+        tickers : str or sequence of str, optional
+            Ticker subset to include.
+        z : float, default 2.65
+            Multiplier applied to annualized volatility.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Lower and upper annual return interval bounds in percent.
+        """
         annual_ret_pct = self.annual_return(tickers) * 100
         annual_vol_pct = self.annual_volatility(tickers) * 100
         return pd.DataFrame(
@@ -302,7 +408,20 @@ class AssetsResearch:
         self,
         tickers: Optional[Union[str, Sequence[str]]] = None,
     ) -> pd.DataFrame:
-        """Build the consolidated per-ticker metrics table used in the project."""
+        """
+        Build the consolidated per-ticker metrics table used in the project.
+
+        Parameters
+        ----------
+        tickers : str or sequence of str, optional
+            Ticker subset to include.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Per-ticker table with return, volatility, skewness, coefficient, and
+            interval metrics.
+        """
         data = self.get_returns(tickers)
         annual_return = data.mean() * 252
         annual_vol = data.std() * np.sqrt(252)

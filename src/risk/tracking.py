@@ -1,4 +1,8 @@
-"""Benchmark-relative risk analysis built on the portfolio composition layer."""
+"""Benchmark-relative portfolio risk analysis.
+
+This module computes active returns, annualized tracking error, and information
+ratio from portfolio returns and a benchmark series.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +18,24 @@ from ..portfolio.portfolio import Portfolio
 
 @dataclass
 class PortfolioRelativeRisk:
-    """Compute benchmark-relative risk metrics such as tracking error."""
+    """
+    Compute benchmark-relative risk metrics such as tracking error.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object used to generate realized returns.
+    benchmark_returns : pandas.Series or pandas.DataFrame, optional
+        Benchmark returns used for relative-risk metrics.
+    benchmark_prices : pandas.Series or pandas.DataFrame, optional
+        Benchmark prices converted to returns when `benchmark_returns` is not
+        supplied.
+    benchmark_name : str, optional
+        Display name assigned to normalized benchmark series.
+    trading_days : int, default 252
+        Number of trading days used to annualize active return and tracking
+        error.
+    """
 
     portfolio: Portfolio
     benchmark_returns: Optional[pd.Series | pd.DataFrame] = None
@@ -32,7 +53,20 @@ class PortfolioRelativeRisk:
         )
 
     def active_returns(self) -> pd.Series:
-        """Return the aligned daily active-return series of the portfolio."""
+        """
+        Return the aligned daily active-return series of the portfolio.
+
+        Returns
+        -------
+        pandas.Series
+            Portfolio return minus benchmark return on overlapping dates.
+
+        Raises
+        ------
+        ValueError
+            If benchmark returns are missing or have fewer than two overlapping
+            observations with portfolio returns.
+        """
         benchmark = self._benchmark_analysis.resolved_benchmark_returns()
         if benchmark is None:
             raise ValueError("benchmark returns are required for relative-risk metrics.")
@@ -53,12 +87,28 @@ class PortfolioRelativeRisk:
         return active
 
     def tracking_error(self) -> float:
-        """Return the annualized tracking error of the portfolio."""
+        """
+        Return the annualized tracking error of the portfolio.
+
+        Returns
+        -------
+        float
+            Standard deviation of active returns annualized by
+            `sqrt(trading_days)`.
+        """
         active = self.active_returns()
         return float(active.std() * np.sqrt(self.trading_days))
 
     def information_ratio(self) -> float:
-        """Return the annualized information ratio of the portfolio."""
+        """
+        Return the annualized information ratio of the portfolio.
+
+        Returns
+        -------
+        float
+            Annualized active return divided by tracking error, or NaN when
+            tracking error is zero.
+        """
         tracking_error = self.tracking_error()
         if np.isclose(tracking_error, 0.0):
             return float("nan")

@@ -1,4 +1,8 @@
-"""Tail-risk analysis built on the portfolio composition layer."""
+"""Historical tail-risk analysis.
+
+This module computes daily historical Value at Risk and Conditional Value at
+Risk from realized portfolio returns.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,14 @@ from ..portfolio.portfolio import Portfolio
 
 @dataclass
 class PortfolioTailRisk:
-    """Compute historical tail-risk metrics from portfolio returns."""
+    """
+    Compute historical tail-risk metrics from portfolio returns.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object used to generate realized returns.
+    """
 
     portfolio: Portfolio
 
@@ -23,7 +34,14 @@ class PortfolioTailRisk:
         return level
 
     def portfolio_returns(self) -> pd.Series:
-        """Return the daily realized return series used by tail-risk metrics."""
+        """
+        Return the daily realized return series used by tail-risk metrics.
+
+        Returns
+        -------
+        pandas.Series
+            Portfolio daily returns indexed by date.
+        """
         return self.portfolio.portfolio_returns()
 
     def historical_var(self, confidence_level: float = 0.95) -> float:
@@ -32,6 +50,16 @@ class PortfolioTailRisk:
 
         The metric is computed from the lower tail of historical daily returns.
         For example, a 95% VaR of `0.02` means a 2% one-period loss threshold.
+
+        Parameters
+        ----------
+        confidence_level : float, default 0.95
+            Confidence level for the historical VaR estimate.
+
+        Returns
+        -------
+        float
+            Positive daily loss threshold.
         """
         level = self._validate_confidence_level(confidence_level)
         returns = self.portfolio_returns()
@@ -43,6 +71,16 @@ class PortfolioTailRisk:
         Return the historical Conditional VaR as a positive expected tail loss.
 
         CVaR is the average loss of observations at or beyond the VaR cutoff.
+
+        Parameters
+        ----------
+        confidence_level : float, default 0.95
+            Confidence level for the historical CVaR estimate.
+
+        Returns
+        -------
+        float
+            Positive average daily tail loss, or NaN when the tail is empty.
         """
         level = self._validate_confidence_level(confidence_level)
         returns = self.portfolio_returns()

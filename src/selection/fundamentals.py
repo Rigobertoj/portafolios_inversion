@@ -1,4 +1,9 @@
-"""Yahoo Finance fundamental-data access for security selection."""
+"""Yahoo Finance fundamental-data access for security selection.
+
+This module fetches profile data, financial statements, cash-flow statements,
+balance sheets, quarterly statements, and price history used by fundamental
+selectors.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +17,22 @@ from ..research.assets_research import yf
 
 @dataclass(frozen=True)
 class FundamentalData:
-    """Container with the raw Yahoo Finance inputs for one company."""
+    """
+    Container with the raw Yahoo Finance inputs for one company.
+
+    Parameters
+    ----------
+    ticker : str
+        Normalized ticker symbol.
+    info : dict
+        Yahoo Finance profile and quote metadata.
+    income_statement, balance_sheet, cash_flow : pandas.DataFrame
+        Annual financial statements.
+    quarterly_income_statement, quarterly_balance_sheet, quarterly_cash_flow : pandas.DataFrame
+        Quarterly financial statements.
+    prices : pandas.Series
+        Price series used for point-in-time ratio calculations.
+    """
 
     ticker: str
     info: Dict[str, object]
@@ -26,7 +46,20 @@ class FundamentalData:
 
 
 class YahooFundamentalsProvider:
-    """Fetch and normalize Yahoo Finance data used by fundamental selectors."""
+    """
+    Fetch and normalize Yahoo Finance data used by fundamental selectors.
+
+    Parameters
+    ----------
+    start : str, default "2020-01-01"
+        First date requested for price history.
+    end : str, optional
+        Optional exclusive end date requested for price history.
+    price_field : str, default "Close"
+        Yahoo Finance history column used as the price series.
+    ticker_factory : callable, optional
+        Factory used to create ticker objects. Defaults to `yfinance.Ticker`.
+    """
 
     def __init__(
         self,
@@ -70,7 +103,13 @@ class YahooFundamentalsProvider:
         return prices
 
     def clear_cache(self) -> None:
-        """Clear cached ticker objects and downloaded fundamental records."""
+        """
+        Clear cached ticker objects and downloaded fundamental records.
+
+        Returns
+        -------
+        None
+        """
         self._ticker_cache.clear()
         self._data_cache.clear()
 
@@ -83,7 +122,19 @@ class YahooFundamentalsProvider:
         return (ticker, self.start, self.end, self.price_field)
 
     def fetch(self, ticker: str) -> FundamentalData:
-        """Fetch raw financial statements, profile data, and prices for a ticker."""
+        """
+        Fetch raw financial statements, profile data, and prices for a ticker.
+
+        Parameters
+        ----------
+        ticker : str
+            Ticker symbol to fetch.
+
+        Returns
+        -------
+        FundamentalData
+            Cached or newly fetched fundamental record.
+        """
         ticker_clean = self._normalize_ticker(ticker)
         cache_key = self._cache_key(ticker_clean)
         if cache_key in self._data_cache:
@@ -121,7 +172,19 @@ class YahooFundamentalsProvider:
         return record
 
     def fetch_many(self, tickers: Iterable[str]) -> Dict[str, FundamentalData]:
-        """Fetch a group of tickers, preserving the normalized ticker keys."""
+        """
+        Fetch a group of tickers, preserving normalized ticker keys.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to fetch.
+
+        Returns
+        -------
+        dict of str to FundamentalData
+            Fundamental records keyed by normalized ticker.
+        """
         data: Dict[str, FundamentalData] = {}
         for ticker in tickers:
             record = self.fetch(ticker)

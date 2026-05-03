@@ -1,4 +1,9 @@
-"""Scoring rules for value and growth fundamental selection."""
+"""Scoring rules for value and growth fundamental selection.
+
+This module ranks companies by weighted cross-sectional percentiles over
+fundamental metrics. Lower-is-better and higher-is-better metrics can be mixed
+inside the same scoring configuration.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +16,20 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class FundamentalScoreConfig:
-    """Weighted score configuration for a fundamental investing style."""
+    """
+    Weighted score configuration for a fundamental investing style.
+
+    Parameters
+    ----------
+    name : str
+        Strategy or style label.
+    metric_weights : mapping of str to float
+        Relative weight assigned to each metric in the composite score.
+    higher_is_better : mapping of str to bool
+        Direction used when ranking each metric.
+    score_column : str, default "fundamental_score"
+        Name of the composite score column added to ranked outputs.
+    """
 
     name: str
     metric_weights: Mapping[str, float]
@@ -80,7 +98,19 @@ class GrowthScoreConfig(FundamentalScoreConfig):
 
 
 def config_for_strategy(strategy: str) -> FundamentalScoreConfig:
-    """Return the default score config for a supported strategy name."""
+    """
+    Return the default score config for a supported strategy name.
+
+    Parameters
+    ----------
+    strategy : str
+        Strategy name. Supported values are `"value"` and `"growth"`.
+
+    Returns
+    -------
+    FundamentalScoreConfig
+        Default scoring configuration for the requested strategy.
+    """
     strategy_clean = str(strategy).strip().lower()
     if strategy_clean == "value":
         return ValueScoreConfig()
@@ -93,7 +123,21 @@ def score_fundamentals(
     metrics: pd.DataFrame,
     config: FundamentalScoreConfig,
 ) -> pd.DataFrame:
-    """Rank companies using weighted cross-sectional percentiles."""
+    """
+    Rank companies using weighted cross-sectional percentiles.
+
+    Parameters
+    ----------
+    metrics : pandas.DataFrame
+        Fundamental metrics table with one row per company.
+    config : FundamentalScoreConfig
+        Metric weights, directions, and score column name.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Ranked table with composite score and component score columns.
+    """
     if metrics.empty:
         return metrics.copy()
 
@@ -138,7 +182,21 @@ def score_fundamentals_over_time(
     metric_history: pd.DataFrame,
     config: FundamentalScoreConfig,
 ) -> pd.DataFrame:
-    """Score companies cross-sectionally inside each reporting period."""
+    """
+    Score companies cross-sectionally inside each reporting period.
+
+    Parameters
+    ----------
+    metric_history : pandas.DataFrame
+        Long-format metrics table containing a `period` column.
+    config : FundamentalScoreConfig
+        Metric weights, directions, and score column name.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Ranked history with one scored cross-section per reporting period.
+    """
     if metric_history.empty:
         return metric_history.copy()
     if "period" not in metric_history.columns:

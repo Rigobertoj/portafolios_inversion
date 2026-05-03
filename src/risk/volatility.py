@@ -1,4 +1,8 @@
-"""Volatility-oriented risk analysis built on the portfolio composition layer."""
+"""Volatility-oriented portfolio risk analysis.
+
+This module computes historical variance/volatility and exponentially weighted
+moving average estimates from realized portfolio returns.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +17,21 @@ from ..portfolio.portfolio import Portfolio
 
 @dataclass
 class PortfolioVolatilityAnalysis:
-    """Compute historical and EWMA volatility measures from portfolio returns."""
+    """
+    Compute historical and EWMA volatility measures from portfolio returns.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object used to generate realized returns.
+    trading_days : int, default 252
+        Number of trading days used to annualize variance and volatility.
+
+    Raises
+    ------
+    ValueError
+        If `trading_days` is non-positive.
+    """
 
     portfolio: Portfolio
     trading_days: int = 252
@@ -40,17 +58,39 @@ class PortfolioVolatilityAnalysis:
         return value
 
     def portfolio_returns(self) -> pd.Series:
-        """Return the daily realized return series used by volatility metrics."""
+        """
+        Return the daily realized return series used by volatility metrics.
+
+        Returns
+        -------
+        pandas.Series
+            Portfolio daily returns indexed by date.
+        """
         return self.portfolio.portfolio_returns()
 
     def historical_variance(self) -> float:
-        """Return the annualized variance of the portfolio."""
+        """
+        Return the annualized variance of the portfolio.
+
+        Returns
+        -------
+        float
+            Daily portfolio return variance multiplied by `trading_days`.
+        """
         returns = self.portfolio_returns()
         variance = float(returns.var() * self.trading_days)
         return max(variance, 0.0)
 
     def historical_volatility(self) -> float:
-        """Return the annualized historical volatility of the portfolio."""
+        """
+        Return the annualized historical volatility of the portfolio.
+
+        Returns
+        -------
+        float
+            Daily portfolio return standard deviation annualized by
+            `sqrt(trading_days)`.
+        """
         returns = self.portfolio_returns()
         return float(returns.std() * np.sqrt(self.trading_days))
 
@@ -73,6 +113,23 @@ class PortfolioVolatilityAnalysis:
 
         Each point updates the previous conditional variance estimate using the
         current realized return and the selected decay parameter.
+
+        Parameters
+        ----------
+        decay : float, default 0.94
+            EWMA decay parameter. Must be strictly between zero and one.
+        mean_adjust : bool, default False
+            Whether to subtract the sample mean before squaring returns.
+        annualize : bool, default False
+            Whether to multiply the variance series by `trading_days`.
+        initial_variance : float, optional
+            Initial conditional variance. If omitted, the first squared return
+            is used as the seed.
+
+        Returns
+        -------
+        pandas.Series
+            EWMA variance series indexed by date.
         """
         lambda_ = self._validate_decay(decay)
         seed_variance = self._validate_initial_variance(initial_variance)
@@ -110,7 +167,25 @@ class PortfolioVolatilityAnalysis:
         annualize: bool = True,
         initial_variance: Optional[float] = None,
     ) -> pd.Series:
-        """Return the EWMA volatility series of the portfolio."""
+        """
+        Return the EWMA volatility series of the portfolio.
+
+        Parameters
+        ----------
+        decay : float, default 0.94
+            EWMA decay parameter. Must be strictly between zero and one.
+        mean_adjust : bool, default False
+            Whether to subtract the sample mean before squaring returns.
+        annualize : bool, default True
+            Whether to annualize variance before taking the square root.
+        initial_variance : float, optional
+            Initial conditional variance.
+
+        Returns
+        -------
+        pandas.Series
+            EWMA volatility series indexed by date.
+        """
         variance_series = self.ewma_variance_series(
             decay=decay,
             mean_adjust=mean_adjust,
@@ -129,7 +204,14 @@ class PortfolioVolatilityAnalysis:
         annualize: bool = False,
         initial_variance: Optional[float] = None,
     ) -> float:
-        """Return the latest EWMA variance estimate of the portfolio."""
+        """
+        Return the latest EWMA variance estimate of the portfolio.
+
+        Returns
+        -------
+        float
+            Last value of `ewma_variance_series`.
+        """
         return float(
             self.ewma_variance_series(
                 decay=decay,
@@ -147,7 +229,14 @@ class PortfolioVolatilityAnalysis:
         annualize: bool = True,
         initial_variance: Optional[float] = None,
     ) -> float:
-        """Return the latest EWMA volatility estimate of the portfolio."""
+        """
+        Return the latest EWMA volatility estimate of the portfolio.
+
+        Returns
+        -------
+        float
+            Last value of `ewma_volatility_series`.
+        """
         return float(
             self.ewma_volatility_series(
                 decay=decay,

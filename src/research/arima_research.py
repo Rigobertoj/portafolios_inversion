@@ -1,4 +1,8 @@
-"""ARIMA modeling helpers aligned with the public research API."""
+"""ARIMA modeling helpers aligned with the public research API.
+
+This module wraps statsmodels ARIMA in a small reporting interface that returns
+pandas tables for parameters, diagnostics, summaries, and forecasts.
+"""
 
 from __future__ import annotations
 
@@ -29,6 +33,27 @@ class ARIMAResearch:
 
     The helper keeps a compact `summary()` table in pandas while still exposing
     the native statsmodels text output through `statsmodels_summary()`.
+
+    Parameters
+    ----------
+    series : pandas.Series, pandas.DataFrame, sequence of float, or numpy.ndarray
+        Target time series. DataFrames must contain exactly one column.
+    order : tuple of int, default (1, 0, 0)
+        Non-seasonal ARIMA `(p, d, q)` order.
+    seasonal_order : tuple of int, default (0, 0, 0, 0)
+        Seasonal ARIMA `(P, D, Q, s)` order.
+    trend : str, optional
+        Trend parameter forwarded to statsmodels.
+    enforce_stationarity : bool, default True
+        Whether statsmodels enforces stationarity.
+    enforce_invertibility : bool, default True
+        Whether statsmodels enforces invertibility.
+
+    Raises
+    ------
+    ValueError
+        If orders have the wrong shape, contain negative values, or the target
+        series is empty.
     """
 
     series: pd.Series | pd.DataFrame | Sequence[float] | np.ndarray
@@ -93,7 +118,19 @@ class ARIMAResearch:
         )
 
     def fit(self, **fit_kwargs) -> "ARIMAResearch":
-        """Fit the ARIMA model and cache the statsmodels result object."""
+        """
+        Fit the ARIMA model and cache the statsmodels result object.
+
+        Parameters
+        ----------
+        **fit_kwargs
+            Keyword arguments forwarded to `statsmodels` model fitting.
+
+        Returns
+        -------
+        ARIMAResearch
+            The fitted instance, returned for chaining.
+        """
         self._result = self._build_model().fit(**fit_kwargs)
         return self
 
@@ -112,7 +149,15 @@ class ARIMAResearch:
         return pd.Series(residuals, index=self._series.index).dropna()
 
     def parameters(self) -> pd.DataFrame:
-        """Return parameter estimates and confidence intervals."""
+        """
+        Return parameter estimates and confidence intervals.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Table with coefficients, standard errors, test statistics, p-values,
+            and confidence interval bounds.
+        """
         result = self.fitted_result()
         index = pd.Index(result.param_names, name="parameter")
         conf_int = result.conf_int()
@@ -138,7 +183,15 @@ class ARIMAResearch:
         )
 
     def summary(self) -> pd.DataFrame:
-        """Return a compact numeric summary of the fitted ARIMA model."""
+        """
+        Return a compact numeric summary of the fitted ARIMA model.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One-column table with observations, information criteria,
+            log-likelihood, residual moments, and variance estimate.
+        """
         result = self.fitted_result()
         params = self.parameters()
         residuals = self.residuals()
@@ -164,7 +217,21 @@ class ARIMAResearch:
         return self.summary()
 
     def forecast(self, steps: int = 5, alpha: float = 0.05) -> pd.DataFrame:
-        """Return point forecasts and confidence intervals."""
+        """
+        Return point forecasts and confidence intervals.
+
+        Parameters
+        ----------
+        steps : int, default 5
+            Number of future periods to forecast.
+        alpha : float, default 0.05
+            Significance level used for confidence intervals.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Statsmodels forecast summary frame.
+        """
         if steps <= 0:
             raise ValueError("steps must be greater than zero.")
         if not 0.0 < alpha < 1.0:

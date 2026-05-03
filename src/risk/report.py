@@ -1,4 +1,8 @@
-"""Aggregate portfolio risk analysis built on the composition layer."""
+"""Aggregate portfolio risk analysis.
+
+`RiskAnalyzer` combines drawdown, tail-risk, volatility, and benchmark-relative
+risk helpers behind a single portfolio-centered reporting API.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +25,26 @@ class RiskAnalyzer:
 
     The analyzer keeps a single portfolio-centered API for the most common
     risk measures while delegating the actual formulas to narrower classes.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object used to generate realized returns and wealth paths.
+    benchmark_returns : pandas.Series or pandas.DataFrame, optional
+        Benchmark returns used for tracking error and information ratio.
+    benchmark_prices : pandas.Series or pandas.DataFrame, optional
+        Benchmark prices converted to returns when `benchmark_returns` is not
+        supplied.
+    benchmark_name : str, optional
+        Display name assigned to normalized benchmark series.
+    trading_days : int, default 252
+        Number of trading days used to annualize volatility and relative-risk
+        metrics.
+
+    Raises
+    ------
+    ValueError
+        If `trading_days` is non-positive.
     """
 
     portfolio: Portfolio
@@ -156,7 +180,22 @@ class RiskAnalyzer:
         initial_value: float = 1.0,
         confidence_level: float = 0.95,
     ) -> pd.DataFrame:
-        """Return a compact risk summary table for the portfolio."""
+        """
+        Return a compact risk summary table for the portfolio.
+
+        Parameters
+        ----------
+        initial_value : float, default 1.0
+            Starting value used for drawdown calculations.
+        confidence_level : float, default 0.95
+            Confidence level used for VaR and CVaR.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One-column table with max drawdown, VaR, CVaR, tracking error, and
+            information ratio.
+        """
         confidence_pct = int(round(float(confidence_level) * 100.0))
         metrics = {
             "Max Drawdown": self.max_drawdown(initial_value=initial_value),

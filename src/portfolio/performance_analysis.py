@@ -1,4 +1,8 @@
-"""Portfolio-level performance analysis built on the new composition layer."""
+"""Aggregate portfolio performance analysis.
+
+The analysis object combines basic return metrics, downside metrics, and
+benchmark-aware ratios into a single report-oriented interface.
+"""
 
 from __future__ import annotations
 
@@ -21,6 +25,26 @@ class PortfolioPerformanceAnalysis:
     The analysis works directly from the realized daily portfolio return series,
     which keeps the API independent from the legacy inheritance hierarchy while
     still supporting the same style of metrics used in the course notebooks.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object containing aligned returns and weights.
+    benchmark_returns : pandas.Series or pandas.DataFrame, optional
+        Benchmark returns used for beta, Jensen alpha, and Treynor ratio.
+    benchmark_prices : pandas.Series or pandas.DataFrame, optional
+        Benchmark prices converted to returns when `benchmark_returns` is not
+        supplied.
+    benchmark_name : str, optional
+        Display name assigned to normalized benchmark series.
+    trading_days : int, default 252
+        Number of trading days used to annualize metrics.
+
+    Raises
+    ------
+    ValueError
+        If both benchmark returns and prices are supplied, or if `trading_days`
+        is non-positive.
     """
 
     portfolio: Portfolio
@@ -146,6 +170,23 @@ class PortfolioPerformanceAnalysis:
     ) -> pd.DataFrame:
         """
         Build a metrics table aligned with the naming used in the course work.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate used by Sharpe, Jensen alpha, Treynor, and
+            Sortino calculations.
+        threshold : float, default 0.0
+            Minimum acceptable return used by downside metrics.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Optional benchmark returns used specifically for downside and Omega
+            calculations in this table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            One-column metrics table with portfolio performance and optional
+            benchmark-relative measures.
         """
         metrics = {
             "Rendimiento esperado": self.expected_return(),

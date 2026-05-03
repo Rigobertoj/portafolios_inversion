@@ -1,4 +1,9 @@
-"""Mean-variance optimization implemented on top of the new package layout."""
+"""Mean-variance portfolio optimization routines.
+
+This module provides both the backward-compatible `PortfolioOptimization`
+interface used by older notebooks and the composition-oriented
+`MeanVarianceOptimizer` used by the new portfolio layer.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +29,25 @@ class PortfolioOptimization(AssetsResearch):
     code while sourcing prices and returns from `src.research.AssetsResearch`.
     The optimization formulas are implemented locally so the new optimization
     package no longer depends on the legacy asset-allocation backend.
+
+    Parameters
+    ----------
+    tickers : iterable of str
+        Asset symbols included in the optimization universe.
+    start : str
+        First date requested for market data.
+    end : str, optional
+        Optional exclusive end date requested for market data.
+    price_field : str, default "Close"
+        Yahoo Finance price field used by the research layer.
+    weight : iterable of float
+        Initial portfolio weights. Length must match `tickers` and values must
+        sum to one.
+
+    Raises
+    ------
+    ValueError
+        If `weight` is omitted, has the wrong shape, or does not sum to one.
     """
 
     def __init__(
@@ -74,6 +98,14 @@ class PortfolioOptimization(AssetsResearch):
 
     @property
     def weight(self) -> np.ndarray:
+        """
+        Return the current portfolio weight vector.
+
+        Returns
+        -------
+        numpy.ndarray
+            Copy of the current weight vector aligned with `tickers`.
+        """
         return self._get_weight()
 
     @weight.setter
@@ -134,24 +166,94 @@ class PortfolioOptimization(AssetsResearch):
         return float(np.sqrt(variance))
 
     def portfolio_path(self, weight: Optional[Iterable[float]] = None) -> pd.Series:
+        """
+        Return the weighted price path for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        pandas.Series
+            Weighted portfolio price path indexed by date.
+        """
         return self._basic_metrics(weight).portfolio_path()
 
     def portfolio_annual_return(self, weight: Optional[Iterable[float]] = None) -> float:
+        """
+        Return annualized expected return for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        float
+            Annualized mean portfolio return.
+        """
         return self._basic_metrics(weight).portfolio_annual_return()
 
     def portfolio_variance(self, weight: Optional[Iterable[float]] = None) -> float:
+        """
+        Return annualized variance for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        float
+            Annualized portfolio variance.
+        """
         return self._basic_metrics(weight).portfolio_variance()
 
     def portfolio_annual_volatility(
         self,
         weight: Optional[Iterable[float]] = None,
     ) -> float:
+        """
+        Return annualized volatility for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        float
+            Annualized portfolio volatility.
+        """
         return self._basic_metrics(weight).portfolio_annual_volatility()
 
     def portfolio_variance_coeficience(
         self,
         weight: Optional[Iterable[float]] = None,
     ) -> float:
+        """
+        Return the volatility-to-return coefficient for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        float
+            Annualized volatility divided by annualized expected return.
+        """
         return self._basic_metrics(weight).portfolio_variance_coeficience()
 
     def portfolio_sharpe_ratio(
@@ -159,6 +261,22 @@ class PortfolioOptimization(AssetsResearch):
         free_rate: float,
         weight: Optional[Iterable[float]] = None,
     ) -> float:
+        """
+        Return the Sharpe ratio for a candidate allocation.
+
+        Parameters
+        ----------
+        free_rate : float
+            Annual risk-free rate.
+        weight : iterable of float, optional
+            Candidate weights. If omitted, the optimizer's current weights are
+            used.
+
+        Returns
+        -------
+        float
+            Annualized Sharpe ratio.
+        """
         return self._basic_metrics(weight).portfolio_sharpe_ratio(free_rate)
 
     @staticmethod
@@ -316,6 +434,20 @@ class PortfolioOptimization(AssetsResearch):
         self,
         config: Optional[MinimumVarianceConfig] = None,
     ) -> OptimizationResult:
+        """
+        Optimize the portfolio for minimum annualized variance.
+
+        Parameters
+        ----------
+        config : MinimumVarianceConfig, optional
+            Solver settings, bounds, starting weights, risk-free rate, and
+            optional minimum-return constraint. Defaults are used when omitted.
+
+        Returns
+        -------
+        OptimizationResult
+            Solver output and portfolio statistics at the optimized weights.
+        """
         if config is None:
             config = MinimumVarianceConfig()
 
@@ -357,6 +489,20 @@ class PortfolioOptimization(AssetsResearch):
         self,
         config: Optional[OptimizationConfig] = None,
     ) -> OptimizationResult:
+        """
+        Optimize the portfolio for maximum Sharpe ratio.
+
+        Parameters
+        ----------
+        config : OptimizationConfig, optional
+            Solver settings, bounds, starting weights, and annual risk-free rate.
+            Defaults are used when omitted.
+
+        Returns
+        -------
+        OptimizationResult
+            Solver output and portfolio statistics at the optimized weights.
+        """
         if config is None:
             config = OptimizationConfig()
 
@@ -390,7 +536,16 @@ class PortfolioOptimization(AssetsResearch):
 
 @dataclass
 class MeanVarianceOptimizer:
-    """Optimize a composed `Portfolio` through the migrated mean-variance solver."""
+    """
+    Optimize a composed `Portfolio` through the mean-variance solver.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object containing aligned prices, returns, tickers, and
+        current weights. Successful optimizations update this portfolio in
+        place.
+    """
 
     portfolio: Portfolio
 
@@ -414,6 +569,20 @@ class MeanVarianceOptimizer:
         self,
         config: Optional[OptimizationConfig] = None,
     ) -> OptimizationResult:
+        """
+        Optimize the composed portfolio for minimum variance.
+
+        Parameters
+        ----------
+        config : OptimizationConfig, optional
+            Solver configuration. A default `MinimumVarianceConfig` is used when
+            omitted.
+
+        Returns
+        -------
+        OptimizationResult
+            Solver output and optimized portfolio statistics.
+        """
         active_config = MinimumVarianceConfig() if config is None else config
         result = self._build_optimizer().optimize_minimum_variance(config=active_config)
         self._apply_optimized_weights(result)
@@ -423,6 +592,20 @@ class MeanVarianceOptimizer:
         self,
         config: Optional[OptimizationConfig] = None,
     ) -> OptimizationResult:
+        """
+        Optimize the composed portfolio for maximum Sharpe ratio.
+
+        Parameters
+        ----------
+        config : OptimizationConfig, optional
+            Solver configuration. A default `OptimizationConfig` is used when
+            omitted.
+
+        Returns
+        -------
+        OptimizationResult
+            Solver output and optimized portfolio statistics.
+        """
         active_config = OptimizationConfig() if config is None else config
         result = self._build_optimizer().optimize_maximum_sharpe(config=active_config)
         self._apply_optimized_weights(result)

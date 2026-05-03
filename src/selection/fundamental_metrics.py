@@ -1,4 +1,8 @@
-"""Pure fundamental metric calculations used by security selectors."""
+"""Pure fundamental metric calculations used by security selectors.
+
+The functions in this module transform raw Yahoo Finance statements and profile
+fields into normalized value, quality, growth, leverage, and liquidity metrics.
+"""
 
 from __future__ import annotations
 
@@ -130,7 +134,20 @@ def _period_growth(values: pd.Series, periods: int = 1) -> pd.Series:
 
 
 def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
-    """Build a normalized metric row from one company's raw fundamental data."""
+    """
+    Build a normalized metric row from one company's raw fundamental data.
+
+    Parameters
+    ----------
+    data : FundamentalData
+        Raw Yahoo Finance record for one ticker.
+
+    Returns
+    -------
+    pandas.Series
+        Metric row containing valuation, profitability, growth, leverage,
+        liquidity, and descriptive fields.
+    """
     info = data.info
     income = data.income_statement
     balance = data.balance_sheet
@@ -379,7 +396,19 @@ def build_fundamental_metric_history(
 
 
 def build_metrics_frame(records: Iterable[FundamentalData]) -> pd.DataFrame:
-    """Build a metrics table for a group of companies."""
+    """
+    Build a metrics table for a group of companies.
+
+    Parameters
+    ----------
+    records : iterable of FundamentalData
+        Raw fundamental records.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Metrics table indexed by ticker.
+    """
     rows = [build_fundamental_metrics(record) for record in records]
     if not rows:
         return pd.DataFrame()
@@ -391,7 +420,23 @@ def build_metric_history_frame(
     frequency: StatementFrequency = "quarterly",
     trailing_periods: int = 4,
 ) -> pd.DataFrame:
-    """Build a period-by-period metrics table for a group of companies."""
+    """
+    Build a period-by-period metrics table for a group of companies.
+
+    Parameters
+    ----------
+    records : iterable of FundamentalData
+        Raw fundamental records.
+    frequency : {"annual", "quarterly"}, default "quarterly"
+        Statement frequency used to build histories.
+    trailing_periods : int, default 4
+        Maximum number of recent periods returned per company.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Long-format metrics table across tickers and reporting periods.
+    """
     frames = [
         build_fundamental_metric_history(
             record,

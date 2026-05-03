@@ -1,4 +1,9 @@
-"""Public selection API built on top of the existing selector modules."""
+"""Public API for security selection.
+
+The package exports correlation-based portfolio selection, Yahoo Finance
+fundamental-data access, metric builders, scoring configurations, and the
+high-level `FundamentalSelector` workflow.
+"""
 
 from .correlation_selector import CorrelationPortfolioSelector, CorrelationSelector
 from .fundamental_metrics import (

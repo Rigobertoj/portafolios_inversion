@@ -1,4 +1,9 @@
-"""Core portfolio entity built by composition over prepared market data."""
+"""Core portfolio entity built from prepared market data.
+
+The `Portfolio` dataclass stores aligned prices, returns, tickers, weights, and
+metadata. Downstream analysis modules reuse this object instead of inheriting
+from data-download classes.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +24,36 @@ class Portfolio:
     The class is intentionally lightweight: it stores aligned price and return
     data, validates the portfolio weights, and exposes the canonical series
     that downstream analysis layers can reuse.
+
+    Parameters
+    ----------
+    prices : pandas.DataFrame
+        Asset price table indexed by date.
+    weights : iterable of float
+        Portfolio weights aligned with `tickers` or with the price columns when
+        `tickers` is omitted. Weights must sum to one.
+    returns : pandas.DataFrame, optional
+        Asset return table indexed by date. If omitted, returns are computed
+        from `prices`.
+    tickers : iterable of str, optional
+        Asset symbols to keep and order. If omitted, all price columns are used.
+    start : str, optional
+        Portfolio start date. If omitted, inferred from the first price date.
+    end : str, optional
+        Exclusive portfolio end date. If omitted, inferred as one day after the
+        last price date.
+    price_field : str, default "Close"
+        Price field represented by `prices`.
+    name : str, optional
+        Name assigned to portfolio return and wealth series.
+
+    Raises
+    ------
+    TypeError
+        If `prices` or supplied `returns` are not pandas DataFrames.
+    ValueError
+        If price/return data are empty, required tickers are missing, weights
+        are invalid, or `price_field` is blank.
     """
 
     prices: pd.DataFrame
@@ -64,7 +99,27 @@ class Portfolio:
         tickers: Optional[Iterable[str]] = None,
         name: Optional[str] = None,
     ) -> "Portfolio":
-        """Build a portfolio from an `AssetsResearch` instance."""
+        """
+        Build a portfolio from an `AssetsResearch` instance.
+
+        Parameters
+        ----------
+        research : AssetsResearch
+            Research object with cached or downloadable price and return data.
+        weights : iterable of float
+            Portfolio weights aligned with the selected tickers.
+        tickers : iterable of str, optional
+            Subset of research tickers to include. If omitted, all research
+            tickers are used.
+        name : str, optional
+            Portfolio name assigned to generated series.
+
+        Returns
+        -------
+        Portfolio
+            Portfolio initialized with prices, returns, metadata, and weights
+            from the research object.
+        """
         resolved_tickers = list(research.tickers if tickers is None else tickers)
         prices = research.get_prices(resolved_tickers)
         returns = research.get_returns(resolved_tickers)
@@ -151,24 +206,64 @@ class Portfolio:
 
     @property
     def weight(self) -> np.ndarray:
-        """Backward-friendly alias around the portfolio weight vector."""
+        """
+        Return a backward-compatible copy of the portfolio weight vector.
+
+        Returns
+        -------
+        numpy.ndarray
+            Portfolio weights aligned with `tickers`.
+        """
         return self.weights.copy()
 
     def asset_prices(self) -> pd.DataFrame:
-        """Return the aligned asset price table."""
+        """
+        Return the aligned asset price table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Price table restricted to `tickers` and copied from the portfolio.
+        """
         return self.prices.loc[:, self.tickers].copy()
 
     def asset_returns(self) -> pd.DataFrame:
-        """Return the aligned asset return table."""
+        """
+        Return the aligned asset return table.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Return table restricted to `tickers` and copied from the portfolio.
+        """
         return self.returns.loc[:, self.tickers].copy()
 
     def portfolio_returns(self) -> pd.Series:
-        """Return the weighted portfolio daily return series."""
+        """
+        Return the weighted portfolio daily return series.
+
+        Returns
+        -------
+        pandas.Series
+            Daily portfolio returns indexed by date and named with `name`.
+        """
         values = self.asset_returns().to_numpy(dtype=float) @ self.weights
         return pd.Series(values, index=self.returns.index, name=self.name)
 
     def wealth_index(self, initial_value: float = 1.0) -> pd.Series:
-        """Return the compounded wealth path of the portfolio."""
+        """
+        Return the compounded wealth path of the portfolio.
+
+        Parameters
+        ----------
+        initial_value : float, default 1.0
+            Starting value of the wealth index.
+
+        Returns
+        -------
+        pandas.Series
+            Compounded wealth path indexed by date.
+        """
         if initial_value <= 0.0:
             raise ValueError("initial_value must be greater than zero.")
         returns = self.portfolio_returns()
@@ -177,12 +272,26 @@ class Portfolio:
         return wealth
 
     def realized_return(self) -> float:
-        """Return the effective realized return of the portfolio path."""
+        """
+        Return the effective realized return of the portfolio path.
+
+        Returns
+        -------
+        float
+            Total compounded return over the available return window.
+        """
         returns = self.portfolio_returns()
         return float((1.0 + returns).prod() - 1.0)
 
     def update_weights(self, weights: Iterable[float]) -> None:
-        """Validate and persist a new portfolio allocation in place."""
+        """
+        Validate and persist a new portfolio allocation in place.
+
+        Parameters
+        ----------
+        weights : iterable of float
+            New weights aligned with `tickers`.
+        """
         self.weights = self._validate_weights(weights, len(self.tickers))
 
     def with_weights(
@@ -191,7 +300,21 @@ class Portfolio:
         *,
         name: Optional[str] = None,
     ) -> "Portfolio":
-        """Return a new portfolio instance with the same data and new weights."""
+        """
+        Return a new portfolio instance with the same data and new weights.
+
+        Parameters
+        ----------
+        weights : iterable of float
+            Replacement weights aligned with `tickers`.
+        name : str, optional
+            Name for the new portfolio. If omitted, the current name is reused.
+
+        Returns
+        -------
+        Portfolio
+            New portfolio object sharing copied prices and returns.
+        """
         return Portfolio(
             prices=self.asset_prices(),
             returns=self.asset_returns(),

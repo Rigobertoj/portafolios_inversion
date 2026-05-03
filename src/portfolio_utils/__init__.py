@@ -1,4 +1,8 @@
-"""Compatibility exports for the portfolio utility helpers."""
+"""Public API for portfolio utility helpers.
+
+The package currently exposes PDF-to-image conversion helpers through both the
+legacy CamelCase module and the newer snake-case wrapper.
+"""
 
 from .pdf_image_converter import (
     PageExportTask,

@@ -1,4 +1,8 @@
-"""Downside-oriented portfolio metrics built on top of the composition layer."""
+"""Downside-oriented portfolio metrics.
+
+This module computes portfolio-level semivariance, downside risk, upside risk,
+Omega, and Sortino ratios from realized portfolio returns.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,18 @@ class PortfolioDownsideMetrics:
     Unlike the legacy post-modern layer, this class focuses on the portfolio as
     the unit of analysis. Asset-level post-modern functionality remains
     available through `PortfolioPostModernMetrics` during the migration.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object containing aligned returns and weights.
+    trading_days : int, default 252
+        Number of trading days used to annualize downside and upside risk.
+
+    Raises
+    ------
+    ValueError
+        If `trading_days` is non-positive.
     """
 
     portfolio: Portfolio
@@ -98,6 +114,18 @@ class PortfolioDownsideMetrics:
 
         The reference is either a scalar minimum acceptable return or a
         benchmark-relative hurdle when `benchmark_returns` is provided.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. Defaults to zero when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside.
+
+        Returns
+        -------
+        float
+            Annualized portfolio semivariance.
         """
         adjusted = self._reference_adjusted_portfolio_returns(
             threshold=threshold,
@@ -111,7 +139,21 @@ class PortfolioDownsideMetrics:
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
-        """Return annualized portfolio downside risk."""
+        """
+        Return annualized portfolio downside risk.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. Defaults to zero when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside.
+
+        Returns
+        -------
+        float
+            Square root of annualized semivariance.
+        """
         semivariance = self.portfolio_semivariance(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
@@ -123,7 +165,21 @@ class PortfolioDownsideMetrics:
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
-        """Return annualized portfolio upside risk."""
+        """
+        Return annualized portfolio upside risk.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. Defaults to zero when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative upside.
+
+        Returns
+        -------
+        float
+            Annualized standard deviation of positive deviations.
+        """
         adjusted = self._reference_adjusted_portfolio_returns(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
@@ -136,7 +192,22 @@ class PortfolioDownsideMetrics:
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
-        """Return the portfolio Omega ratio as upside risk over downside risk."""
+        """
+        Return the portfolio Omega ratio as upside risk over downside risk.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. Defaults to zero when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative risk.
+
+        Returns
+        -------
+        float
+            Upside risk divided by downside risk, or NaN when downside risk is
+            zero.
+        """
         downside = self.portfolio_downside_risk(
             threshold=threshold,
             benchmark_returns=benchmark_returns,
@@ -156,7 +227,24 @@ class PortfolioDownsideMetrics:
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
-        """Return the portfolio Sortino ratio."""
+        """
+        Return the portfolio Sortino ratio.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate subtracted from expected return.
+        threshold : float, optional
+            Minimum acceptable return used for downside risk.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside.
+
+        Returns
+        -------
+        float
+            Excess annualized return divided by downside risk, or NaN when
+            downside risk is zero.
+        """
         downside = self.portfolio_downside_risk(
             threshold=threshold,
             benchmark_returns=benchmark_returns,

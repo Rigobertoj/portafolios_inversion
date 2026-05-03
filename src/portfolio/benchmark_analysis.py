@@ -1,4 +1,8 @@
-"""Benchmark-aware portfolio analysis built on top of the composition layer."""
+"""Benchmark-aware portfolio analysis.
+
+This module computes benchmark return normalization and portfolio metrics such
+as beta, CAPM expected return, Jensen alpha, and Treynor ratio.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,26 @@ class PortfolioBenchmarkAnalysis:
     The class focuses on portfolio-level benchmark analysis only. Legacy
     asset-level functionality remains available through
     `PortfolioElementaryAnalysis` while the new public API is migrated.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object containing aligned returns and weights.
+    benchmark_returns : pandas.Series or pandas.DataFrame, optional
+        Benchmark returns used for relative metrics.
+    benchmark_prices : pandas.Series or pandas.DataFrame, optional
+        Benchmark prices converted to returns when `benchmark_returns` is not
+        supplied.
+    benchmark_name : str, optional
+        Display name assigned to normalized benchmark series.
+    trading_days : int, default 252
+        Number of trading days used to annualize benchmark return.
+
+    Raises
+    ------
+    ValueError
+        If both benchmark returns and prices are supplied, or if `trading_days`
+        is non-positive.
     """
 
     portfolio: Portfolio
@@ -64,7 +88,15 @@ class PortfolioBenchmarkAnalysis:
         return series
 
     def resolved_benchmark_returns(self) -> Optional[pd.Series]:
-        """Return the normalized benchmark return series."""
+        """
+        Return the normalized benchmark return series.
+
+        Returns
+        -------
+        pandas.Series or None
+            Benchmark returns when benchmark data are available; otherwise
+            `None`.
+        """
         if self.benchmark_returns is not None:
             return self._normalize_benchmark_series(
                 self.benchmark_returns,
@@ -100,14 +132,30 @@ class PortfolioBenchmarkAnalysis:
         return aligned
 
     def benchmark_annual_return(self) -> float:
-        """Return the annualized benchmark expected return."""
+        """
+        Return the annualized benchmark expected return.
+
+        Returns
+        -------
+        float
+            Mean benchmark return multiplied by `trading_days`, or NaN when no
+            benchmark is configured.
+        """
         benchmark = self.resolved_benchmark_returns()
         if benchmark is None:
             return float("nan")
         return float(benchmark.mean() * self.trading_days)
 
     def portfolio_beta(self) -> float:
-        """Return the portfolio beta relative to the configured benchmark."""
+        """
+        Return the portfolio beta relative to the configured benchmark.
+
+        Returns
+        -------
+        float
+            Covariance between portfolio and benchmark returns divided by
+            benchmark variance, or NaN when benchmark variance is zero.
+        """
         aligned = self._aligned_portfolio_benchmark_returns()
         benchmark_variance = float(aligned["benchmark"].var())
         if np.isclose(benchmark_variance, 0.0):
@@ -121,7 +169,22 @@ class PortfolioBenchmarkAnalysis:
         risk_free_rate: float = 0.0,
         market_expected_return: Optional[float] = None,
     ) -> float:
-        """Return the portfolio expected return under CAPM."""
+        """
+        Return the portfolio expected return under CAPM.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate.
+        market_expected_return : float, optional
+            Annual market return. If omitted, the configured benchmark annual
+            return is used.
+
+        Returns
+        -------
+        float
+            CAPM expected return, or NaN when beta is undefined.
+        """
         if market_expected_return is None:
             market_expected_return = self.benchmark_annual_return()
 
@@ -133,7 +196,19 @@ class PortfolioBenchmarkAnalysis:
         )
 
     def portfolio_jensen_alpha(self, risk_free_rate: float = 0.0) -> float:
-        """Return the Jensen alpha of the portfolio."""
+        """
+        Return the Jensen alpha of the portfolio.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate used in the CAPM expected return.
+
+        Returns
+        -------
+        float
+            Annualized portfolio return minus CAPM expected return.
+        """
         capm_expected = self.portfolio_capm_expected_return(
             risk_free_rate=risk_free_rate,
         )
@@ -142,7 +217,20 @@ class PortfolioBenchmarkAnalysis:
         return float(self._basic_metrics.portfolio_annual_return() - capm_expected)
 
     def portfolio_treynor_ratio(self, risk_free_rate: float = 0.0) -> float:
-        """Return the Treynor ratio of the portfolio."""
+        """
+        Return the Treynor ratio of the portfolio.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate.
+
+        Returns
+        -------
+        float
+            Portfolio excess return divided by beta, or NaN when beta is
+            missing or zero.
+        """
         beta = self.portfolio_beta()
         if np.isnan(beta) or np.isclose(beta, 0.0):
             return float("nan")

@@ -1,4 +1,9 @@
-"""Compatibility adapters that preserve legacy portfolio class interfaces."""
+"""Compatibility adapters that preserve legacy portfolio interfaces.
+
+The classes in this module keep historical names available while delegating the
+actual implementation to the newer research, optimization, and portfolio
+modules.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,10 @@ class PortfolioElementaryMetrics(PortfolioOptimization):
     data workflow from the old `asset_allocation` package. This adapter keeps
     that public contract while delegating the actual implementation to the new
     optimization and portfolio layers.
+
+    Notes
+    -----
+    This class intentionally inherits all behavior from `PortfolioOptimization`.
     """
 
 
@@ -29,6 +38,11 @@ class PortfolioPostModernMetrics(PortfolioOptimizationPostModern):
 
     The adapter preserves the legacy asset-level post-modern methods while the
     real implementation now lives in `src.optimization.postmodern`.
+
+    Notes
+    -----
+    This class intentionally inherits all behavior from
+    `PortfolioOptimizationPostModern`.
     """
 
 
@@ -38,6 +52,26 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
 
     The class retains the legacy constructor and CAPM-oriented methods while
     reusing the new research and portfolio foundations underneath.
+
+    Parameters
+    ----------
+    tickers : iterable of str
+        Asset symbols included in the portfolio.
+    start : str
+        First date requested for market data.
+    end : str, optional
+        Optional exclusive end date requested for market data.
+    price_field : str, default "Close"
+        Yahoo Finance price field used by the research layer.
+    weight : iterable of float, optional
+        Portfolio weights. The parent optimizer requires a valid weight vector.
+    benchmark : str
+        Benchmark ticker used for CAPM-oriented metrics.
+
+    Raises
+    ------
+    ValueError
+        If `benchmark` is omitted or blank.
     """
 
     def __init__(
@@ -72,6 +106,27 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         end: Optional[str] = None,
         price_field: str = "Close",
     ) -> "PortfolioElementaryAnalysis":
+        """
+        Build a benchmark analysis instance with equal asset weights.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Asset symbols included in the portfolio.
+        start : str
+            First date requested for market data.
+        benchmark : str
+            Benchmark ticker used for CAPM-oriented metrics.
+        end : str, optional
+            Optional exclusive end date requested for market data.
+        price_field : str, default "Close"
+            Yahoo Finance price field used by the research layer.
+
+        Returns
+        -------
+        PortfolioElementaryAnalysis
+            Analysis instance initialized with equal weights.
+        """
         normalized_tickers = AssetsResearch._normalize_tickers(tickers)
         if not normalized_tickers:
             raise ValueError("tickers must contain at least one symbol.")
@@ -97,6 +152,14 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         self.__benchmark_returns_cache = pd.DataFrame()
 
     def benchmark_returns(self) -> pd.Series:
+        """
+        Return benchmark daily returns.
+
+        Returns
+        -------
+        pandas.Series
+            Benchmark return series downloaded through `AssetsResearch`.
+        """
         if self.__benchmark_returns_cache.empty:
             benchmark_research = AssetsResearch(
                 tickers=[self.benchmark],
@@ -112,6 +175,14 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         return self.__benchmark_returns_cache.iloc[:, 0].copy()
 
     def benchmark_annual_return(self) -> float:
+        """
+        Return annualized benchmark expected return.
+
+        Returns
+        -------
+        float
+            Mean daily benchmark return multiplied by 252.
+        """
         returns = self.benchmark_returns()
         if returns.empty:
             raise ValueError("benchmark returns are empty.")
@@ -138,6 +209,15 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         return aligned
 
     def portfolio_beta(self) -> float:
+        """
+        Return portfolio beta relative to the configured benchmark.
+
+        Returns
+        -------
+        float
+            Covariance between portfolio and benchmark returns divided by
+            benchmark variance.
+        """
         aligned = self._aligned_portfolio_benchmark_returns()
         benchmark_variance = float(aligned["benchmark"].var())
         if np.isclose(benchmark_variance, 0.0):
@@ -147,6 +227,14 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         return float(covariance / benchmark_variance)
 
     def assets_beta(self) -> pd.Series:
+        """
+        Return per-asset beta relative to the configured benchmark.
+
+        Returns
+        -------
+        pandas.Series
+            Beta value for each asset ticker.
+        """
         assets_returns = self.get_returns()
         if assets_returns.empty:
             raise ValueError("assets returns are empty.")
@@ -179,6 +267,21 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         risk_free_rate: float = 0.0,
         market_expected_return: Optional[float] = None,
     ) -> float:
+        """
+        Return portfolio expected return under CAPM.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate.
+        market_expected_return : float, optional
+            Annual market return. If omitted, benchmark annual return is used.
+
+        Returns
+        -------
+        float
+            CAPM expected portfolio return.
+        """
         if market_expected_return is None:
             market_expected_return = self.benchmark_annual_return()
 
@@ -193,6 +296,21 @@ class PortfolioElementaryAnalysis(PortfolioElementaryMetrics):
         risk_free_rate: float = 0.0,
         market_expected_return: Optional[float] = None,
     ) -> pd.Series:
+        """
+        Return per-asset expected returns under CAPM.
+
+        Parameters
+        ----------
+        risk_free_rate : float, default 0.0
+            Annual risk-free rate.
+        market_expected_return : float, optional
+            Annual market return. If omitted, benchmark annual return is used.
+
+        Returns
+        -------
+        pandas.Series
+            CAPM expected return for each asset ticker.
+        """
         if market_expected_return is None:
             market_expected_return = self.benchmark_annual_return()
 

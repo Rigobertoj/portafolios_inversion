@@ -1,4 +1,8 @@
-"""Snake-case compatibility wrapper for PDF image conversion helpers."""
+"""Snake-case compatibility wrapper for PDF image conversion helpers.
+
+This module re-exports the public API from `PdfImageConverter.py` under a
+snake-case module name for newer imports.
+"""
 
 from .PdfImageConverter import (
     PageExportTask,

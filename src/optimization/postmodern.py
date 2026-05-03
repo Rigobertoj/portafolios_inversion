@@ -1,4 +1,9 @@
-"""Post-modern optimization implemented on top of the new package layout."""
+"""Post-modern portfolio optimization routines.
+
+This module implements downside-aware optimization objectives, including
+minimum semivariance and maximum Omega, while preserving the legacy
+`PortfolioOptimizationPostModern` public interface.
+"""
 
 from __future__ import annotations
 
@@ -25,6 +30,20 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
 
     The class preserves the historical constructor used in notebooks while
     moving the real optimization logic into `src.optimization`.
+
+    Parameters
+    ----------
+    tickers : iterable of str
+        Asset symbols included in the optimization universe.
+    start : str
+        First date requested for market data.
+    end : str, optional
+        Optional exclusive end date requested for market data.
+    price_field : str, default "Close"
+        Yahoo Finance price field used by the research layer.
+    weight : iterable of float
+        Initial portfolio weights. Length must match `tickers` and values must
+        sum to one.
     """
 
     def __init__(
@@ -120,6 +139,23 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: float = 0.0,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> pd.DataFrame:
+        """
+        Return asset returns below the selected hurdle.
+
+        Parameters
+        ----------
+        threshold : float, default 0.0
+            Minimum acceptable return used as the downside cutoff.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series. When supplied, downside is measured against
+            `benchmark_returns + threshold`.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Negative deviations by asset, with non-downside observations set to
+            zero.
+        """
         normalized_threshold = self._normalize_threshold(threshold)
         filtered_returns = None
         if benchmark_returns is None:
@@ -153,6 +189,23 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: float = 0.0,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> pd.DataFrame:
+        """
+        Return asset returns above the selected hurdle.
+
+        Parameters
+        ----------
+        threshold : float, default 0.0
+            Minimum acceptable return used as the upside cutoff.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series. When supplied, upside is measured against
+            `benchmark_returns + threshold`.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Positive deviations by asset, with non-upside observations set to
+            zero.
+        """
         normalized_threshold = self._normalize_threshold(threshold)
         filtered_returns = None
         if benchmark_returns is None:
@@ -210,6 +263,22 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> np.ndarray:
+        """
+        Return annualized downside risk for each asset.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold from the
+            latest downside calculation is reused.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside risk.
+
+        Returns
+        -------
+        numpy.ndarray
+            Downside-risk vector aligned with the optimizer's asset order.
+        """
         return self._downside_risk_series(
             threshold,
             benchmark_returns=benchmark_returns,
@@ -244,6 +313,22 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> np.ndarray:
+        """
+        Return annualized upside risk for each asset.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold from the
+            latest upside calculation is reused.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative upside risk.
+
+        Returns
+        -------
+        numpy.ndarray
+            Upside-risk vector aligned with the optimizer's asset order.
+        """
         return self._upside_risk_series(
             threshold,
             benchmark_returns=benchmark_returns,
@@ -254,6 +339,22 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> pd.DataFrame:
+        """
+        Return the downside semivariance matrix.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold is used.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside
+            deviations.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Semivariance matrix indexed and columned by ticker.
+        """
         normalized_threshold = self._resolve_threshold(threshold)
         semivariance = None
         if benchmark_returns is None:
@@ -303,6 +404,23 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
+        """
+        Return portfolio semivariance for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : sequence of float, optional
+            Candidate weights. If omitted, current weights are used.
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold is used.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside risk.
+
+        Returns
+        -------
+        float
+            Portfolio semivariance.
+        """
         vector = self._resolve_weight(weight)
         semivariance = self.semivariance_matrix(
             threshold,
@@ -317,6 +435,23 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
+        """
+        Return portfolio downside risk for a candidate allocation.
+
+        Parameters
+        ----------
+        weight : sequence of float, optional
+            Candidate weights. If omitted, current weights are used.
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold is used.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative downside risk.
+
+        Returns
+        -------
+        float
+            Square root of portfolio semivariance.
+        """
         semivariance = self.portfolio_semivariance(
             weight=weight,
             threshold=threshold,
@@ -329,6 +464,22 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> pd.Series:
+        """
+        Return per-asset Omega ratios.
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold is used.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative upside and
+            downside calculations.
+
+        Returns
+        -------
+        pandas.Series
+            Omega ratio for each asset, indexed by ticker.
+        """
         normalized_threshold = self._resolve_threshold(threshold)
         omega = None
         if benchmark_returns is None:
@@ -357,6 +508,23 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         threshold: Optional[float] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> float:
+        """
+        Return weighted portfolio Omega ratio.
+
+        Parameters
+        ----------
+        weight : sequence of float, optional
+            Candidate weights. If omitted, current weights are used.
+        threshold : float, optional
+            Minimum acceptable return. If omitted, the active threshold is used.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series used for benchmark-relative Omega.
+
+        Returns
+        -------
+        float
+            Weighted average of asset Omega ratios.
+        """
         vector = self._resolve_weight(weight)
         omega = self.asset_omega_ratio(
             threshold,
@@ -498,6 +666,22 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         config: Optional[MinimumSemivarianceConfig] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> PostModernOptimizationResult:
+        """
+        Optimize the portfolio for minimum semivariance.
+
+        Parameters
+        ----------
+        config : MinimumSemivarianceConfig, optional
+            Solver settings, bounds, threshold, starting weights, and optional
+            minimum-return constraint. Defaults are used when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series for benchmark-relative semivariance.
+
+        Returns
+        -------
+        PostModernOptimizationResult
+            Solver output and post-modern statistics at the optimized weights.
+        """
         if config is None:
             config = MinimumSemivarianceConfig()
 
@@ -542,6 +726,20 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
         self,
         config: Optional[MaximumOmegaConfig] = None,
     ) -> PostModernOptimizationResult:
+        """
+        Optimize the portfolio for maximum Omega ratio.
+
+        Parameters
+        ----------
+        config : MaximumOmegaConfig, optional
+            Solver settings, bounds, threshold, and starting weights. Defaults
+            are used when omitted.
+
+        Returns
+        -------
+        PostModernOptimizationResult
+            Solver output and post-modern statistics at the optimized weights.
+        """
         if config is None:
             config = MaximumOmegaConfig()
 
@@ -574,7 +772,16 @@ class PortfolioOptimizationPostModern(PortfolioOptimization):
 
 @dataclass
 class PostModernOptimizer:
-    """Optimize a composed `Portfolio` through the migrated downside solver."""
+    """
+    Optimize a composed `Portfolio` through the post-modern solver.
+
+    Parameters
+    ----------
+    portfolio : Portfolio
+        Portfolio object containing aligned prices, returns, tickers, and
+        current weights. Successful optimizations update this portfolio in
+        place.
+    """
 
     portfolio: Portfolio
 
@@ -599,6 +806,22 @@ class PostModernOptimizer:
         config: Optional[PostModernOptimizationConfig] = None,
         benchmark_returns: Optional[pd.Series | pd.DataFrame] = None,
     ) -> PostModernOptimizationResult:
+        """
+        Optimize the composed portfolio for minimum semivariance.
+
+        Parameters
+        ----------
+        config : PostModernOptimizationConfig, optional
+            Solver configuration. A default `MinimumSemivarianceConfig` is used
+            when omitted.
+        benchmark_returns : pandas.Series or pandas.DataFrame, optional
+            Benchmark return series for benchmark-relative semivariance.
+
+        Returns
+        -------
+        PostModernOptimizationResult
+            Solver output and optimized post-modern statistics.
+        """
         active_config = MinimumSemivarianceConfig() if config is None else config
         result = self._build_optimizer().optimize_minimum_semivariance(
             config=active_config,
@@ -611,6 +834,20 @@ class PostModernOptimizer:
         self,
         config: Optional[PostModernOptimizationConfig] = None,
     ) -> PostModernOptimizationResult:
+        """
+        Optimize the composed portfolio for maximum Omega ratio.
+
+        Parameters
+        ----------
+        config : PostModernOptimizationConfig, optional
+            Solver configuration. A default `MaximumOmegaConfig` is used when
+            omitted.
+
+        Returns
+        -------
+        PostModernOptimizationResult
+            Solver output and optimized post-modern statistics.
+        """
         active_config = MaximumOmegaConfig() if config is None else config
         result = self._build_optimizer().optimize_maximum_omega(config=active_config)
         self._apply_optimized_weights(result)

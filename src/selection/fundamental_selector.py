@@ -1,4 +1,9 @@
-"""High-level fundamental selector for value and growth investing workflows."""
+"""High-level fundamental selector for value and growth workflows.
+
+`FundamentalSelector` orchestrates data collection, metric construction,
+scoring, top-k selection, interpretability reports, and historical metric
+evolution for fundamental investing strategies.
+"""
 
 from __future__ import annotations
 
@@ -21,7 +26,19 @@ from .fundamentals import FundamentalData, YahooFundamentalsProvider
 
 
 class FundamentalSelector:
-    """Rank and select companies using Yahoo Finance fundamental data."""
+    """
+    Rank and select companies using Yahoo Finance fundamental data.
+
+    Parameters
+    ----------
+    strategy : str, default "value"
+        Strategy label used to choose the default scoring configuration.
+    provider : YahooFundamentalsProvider, optional
+        Data provider used to fetch raw fundamental records.
+    score_config : FundamentalScoreConfig, optional
+        Custom scoring configuration. If omitted, a default config is created
+        from `strategy`.
+    """
 
     def __init__(
         self,
@@ -75,7 +92,19 @@ class FundamentalSelector:
             self.ranking_history_ = pd.DataFrame()
 
     def collect_metrics(self, tickers: Iterable[str]) -> pd.DataFrame:
-        """Download raw data and compute fundamental metrics for a ticker universe."""
+        """
+        Download raw data and compute fundamental metrics for a ticker universe.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to analyze.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Metrics table indexed by ticker.
+        """
         normalized = self._normalize_tickers(tickers)
         self.raw_data = self.provider.fetch_many(normalized)
         self.metrics_ = build_metrics_frame(self.raw_data.values())
@@ -87,7 +116,23 @@ class FundamentalSelector:
         frequency: StatementFrequency = "quarterly",
         trailing_periods: int = 4,
     ) -> pd.DataFrame:
-        """Collect period-by-period metrics for a ticker universe."""
+        """
+        Collect period-by-period metrics for a ticker universe.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to analyze.
+        frequency : {"annual", "quarterly"}, default "quarterly"
+            Statement frequency used to build histories.
+        trailing_periods : int, default 4
+            Maximum number of recent periods returned per company.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Long-format historical metrics table.
+        """
         normalized = self._normalize_tickers(tickers)
         self.raw_data = self.provider.fetch_many(normalized)
         self.metric_history_ = build_metric_history_frame(
@@ -98,7 +143,19 @@ class FundamentalSelector:
         return self.metric_history_.copy()
 
     def rank(self, tickers: Iterable[str]) -> pd.DataFrame:
-        """Return a ranked DataFrame for the configured fundamental strategy."""
+        """
+        Return a ranked DataFrame for the configured fundamental strategy.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to rank.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Ranking table sorted by composite fundamental score.
+        """
         metrics = self.collect_metrics(tickers)
         if metrics.empty:
             raise ValueError("No fundamental metrics could be built for the ticker universe.")
@@ -112,7 +169,23 @@ class FundamentalSelector:
         frequency: StatementFrequency = "quarterly",
         trailing_periods: int = 4,
     ) -> pd.DataFrame:
-        """Return fundamental scores by reporting period."""
+        """
+        Return fundamental scores by reporting period.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to rank through time.
+        frequency : {"annual", "quarterly"}, default "quarterly"
+            Statement frequency used to build histories.
+        trailing_periods : int, default 4
+            Maximum number of recent periods returned per company.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Long-format ranked history.
+        """
         metric_history = self.collect_metric_history(
             tickers,
             frequency=frequency,
@@ -127,7 +200,21 @@ class FundamentalSelector:
         return self.ranking_history_.copy()
 
     def select_top(self, ranking: Optional[pd.DataFrame] = None, top_k: int = 5) -> pd.DataFrame:
-        """Return the top-ranked companies from an existing ranking table."""
+        """
+        Return the top-ranked companies from an existing ranking table.
+
+        Parameters
+        ----------
+        ranking : pandas.DataFrame, optional
+            Ranking table. If omitted, the latest `ranking_` is used.
+        top_k : int, default 5
+            Number of rows to return.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Top-ranked companies reset to a clean integer index.
+        """
         if top_k < 1:
             raise ValueError("top_k must be >= 1.")
 
@@ -141,7 +228,22 @@ class FundamentalSelector:
         ranking: Optional[pd.DataFrame] = None,
         top_k: int = 5,
     ) -> Dict[str, pd.DataFrame]:
-        """Build an interpretability report for the selected companies."""
+        """
+        Build an interpretability report for the selected companies.
+
+        Parameters
+        ----------
+        ranking : pandas.DataFrame, optional
+            Ranking table. If omitted, the latest `ranking_` is used.
+        top_k : int, default 5
+            Number of selected companies to include.
+
+        Returns
+        -------
+        dict of str to pandas.DataFrame
+            Selected companies, metric snapshot, score weights, and component
+            scores.
+        """
         selected = self.select_top(ranking=ranking, top_k=top_k)
         metric_names = list(self.score_config.metric_weights.keys())
         available_metrics = [metric for metric in metric_names if metric in selected.columns]
@@ -263,7 +365,22 @@ class FundamentalSelector:
         return evolution
 
     def run_pipeline(self, tickers: Iterable[str], top_k: int = 5) -> Dict[str, Any]:
-        """Execute the fundamental selection workflow end to end."""
+        """
+        Execute the fundamental selection workflow end to end.
+
+        Parameters
+        ----------
+        tickers : iterable of str
+            Ticker symbols to rank and select.
+        top_k : int, default 5
+            Number of selected companies to return.
+
+        Returns
+        -------
+        dict
+            Metrics, ranking, selected rows, selected ticker list, and
+            interpretability report.
+        """
         ranking = self.rank(tickers)
         selected = self.select_top(ranking=ranking, top_k=top_k)
         report = self.selection_report(ranking=ranking, top_k=top_k)

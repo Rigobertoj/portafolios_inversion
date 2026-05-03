@@ -1,3 +1,10 @@
+"""PDF-to-image conversion helpers.
+
+This module plans and executes PDF page rendering through Poppler command-line
+tools such as `pdfinfo`, `pdftoppm`, and `pdftocairo`. It exposes immutable
+option and report dataclasses plus convenience wrappers for PNG and JPG output.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,14 +24,22 @@ class PdfToImageOptions:
     """
     Immutable conversion options used by the functional pipeline.
 
-    Attributes:
-        image_format: Output format ("png" or "jpg").
-        dpi: Rendering resolution.
-        quality: JPG quality in range 1..100.
-        pages: Optional list of 1-based page numbers. If omitted, converts all pages.
-        output_stem: Optional output filename stem (without extension).
-        overwrite: Replace files if they already exist.
-        renderer: Renderer strategy. "auto" picks the first available backend.
+    Parameters
+    ----------
+    image_format : {"png", "jpg"}, default "png"
+        Output image format.
+    dpi : int, default 200
+        Rendering resolution.
+    quality : int, default 90
+        JPG quality in the inclusive range 1..100.
+    pages : sequence of int, optional
+        One-based page numbers to export. If omitted, every page is converted.
+    output_stem : str, optional
+        Output filename stem without extension.
+    overwrite : bool, default False
+        Whether existing output files may be replaced.
+    renderer : {"auto", "pdftoppm", "pdftocairo"}, default "auto"
+        Renderer strategy. `"auto"` picks the first available backend.
     """
 
     image_format: ImageFormat = "png"
@@ -38,7 +53,16 @@ class PdfToImageOptions:
 
 @dataclass(frozen=True, slots=True)
 class PageExportTask:
-    """Single-page render task produced during planning."""
+    """
+    Single-page render task produced during planning.
+
+    Parameters
+    ----------
+    page_number : int
+        One-based PDF page number to render.
+    output_path : pathlib.Path
+        Final image file path expected for this page.
+    """
 
     page_number: int
     output_path: Path
@@ -46,7 +70,26 @@ class PageExportTask:
 
 @dataclass(frozen=True, slots=True)
 class PdfImageConversionReport:
-    """Structured output from a completed conversion run."""
+    """
+    Structured output from a completed conversion run.
+
+    Parameters
+    ----------
+    source_pdf : pathlib.Path
+        Resolved source PDF path.
+    output_dir : pathlib.Path
+        Resolved output directory.
+    image_format : {"png", "jpg"}
+        Exported image format.
+    dpi : int
+        Rendering resolution.
+    renderer : {"pdftoppm", "pdftocairo"}
+        Renderer backend used during execution.
+    exported_pages : tuple of int
+        One-based page numbers exported.
+    files : tuple of pathlib.Path
+        Final image files produced.
+    """
 
     source_pdf: Path
     output_dir: Path
@@ -66,13 +109,19 @@ def convert_pdf_to_images(
     """
     End-to-end conversion API: plan first, execute second.
 
-    Args:
-        pdf_path: Source PDF.
-        output_dir: Destination folder. Defaults to "<pdf_name>_images" next to the PDF.
-        options: Optional immutable conversion options.
+    Parameters
+    ----------
+    pdf_path : str or pathlib.Path
+        Source PDF.
+    output_dir : str or pathlib.Path, optional
+        Destination folder. Defaults to `<pdf_name>_images` next to the PDF.
+    options : PdfToImageOptions, optional
+        Immutable conversion options.
 
-    Returns:
-        PdfImageConversionReport with produced files and metadata.
+    Returns
+    -------
+    PdfImageConversionReport
+        Produced files and conversion metadata.
     """
     source_pdf, target_dir, safe_options, tasks = plan_pdf_to_image_conversion(
         pdf_path=pdf_path,
@@ -97,7 +146,14 @@ def pdf_to_png(
     overwrite: bool = False,
     renderer: RendererMode = "auto",
 ) -> PdfImageConversionReport:
-    """Convenience wrapper to export PDF pages as PNG images."""
+    """
+    Export PDF pages as PNG images.
+
+    Returns
+    -------
+    PdfImageConversionReport
+        Produced files and conversion metadata.
+    """
     options = PdfToImageOptions(
         image_format="png",
         dpi=dpi,
@@ -120,7 +176,14 @@ def pdf_to_jpg(
     overwrite: bool = False,
     renderer: RendererMode = "auto",
 ) -> PdfImageConversionReport:
-    """Convenience wrapper to export PDF pages as JPG images."""
+    """
+    Export PDF pages as JPG images.
+
+    Returns
+    -------
+    PdfImageConversionReport
+        Produced files and conversion metadata.
+    """
     options = PdfToImageOptions(
         image_format="jpg",
         dpi=dpi,
@@ -140,6 +203,20 @@ def plan_pdf_to_image_conversion(
 ) -> tuple[Path, Path, PdfToImageOptions, tuple[PageExportTask, ...]]:
     """
     Pure planning function: validates inputs and creates render tasks.
+
+    Parameters
+    ----------
+    pdf_path : str or pathlib.Path
+        Source PDF.
+    output_dir : str or pathlib.Path, optional
+        Destination folder.
+    options : PdfToImageOptions, optional
+        Conversion options. Defaults are used when omitted.
+
+    Returns
+    -------
+    tuple
+        `(source_pdf, output_dir, options, tasks)` prepared for execution.
     """
     safe_options = _validate_options(options or PdfToImageOptions())
     source_pdf = _resolve_pdf_path(pdf_path)
@@ -169,6 +246,22 @@ def execute_pdf_to_image_conversion(
 ) -> PdfImageConversionReport:
     """
     Side-effect function that executes a previously built conversion plan.
+
+    Parameters
+    ----------
+    source_pdf : str or pathlib.Path
+        Source PDF.
+    output_dir : str or pathlib.Path
+        Destination folder.
+    tasks : sequence of PageExportTask
+        Render tasks produced by `plan_pdf_to_image_conversion`.
+    options : PdfToImageOptions
+        Conversion options.
+
+    Returns
+    -------
+    PdfImageConversionReport
+        Produced files and conversion metadata.
     """
     if not tasks:
         raise ValueError("No conversion tasks found.")
@@ -216,7 +309,19 @@ def execute_pdf_to_image_conversion(
 
 
 def get_pdf_page_count(pdf_path: str | Path) -> int:
-    """Return total pages using `pdfinfo`."""
+    """
+    Return total pages using `pdfinfo`.
+
+    Parameters
+    ----------
+    pdf_path : str or pathlib.Path
+        Source PDF path.
+
+    Returns
+    -------
+    int
+        Number of pages in the PDF.
+    """
     _ensure_binary("pdfinfo")
     source_pdf = _resolve_pdf_path(pdf_path)
     command = ["pdfinfo", str(source_pdf)]

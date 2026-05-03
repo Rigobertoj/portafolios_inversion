@@ -1,4 +1,9 @@
-"""Static backtesting engine implemented on the new package layout."""
+"""Static backtesting engine for allocation strategies.
+
+The static engine estimates strategy weights once on an optimization window and
+then simulates those fixed weights over a backtest window. It also prepares
+optional benchmark series and computes the shared performance metrics table.
+"""
 
 from __future__ import annotations
 
@@ -25,6 +30,40 @@ class Backtester:
     The implementation preserves the previous behavior while relocating the
     engine to the dedicated `backtesting` package so future growth can happen
     outside the old `managment_risk` module.
+
+    Parameters
+    ----------
+    config : BacktestConfig
+        Global backtest configuration. It defines the asset universe, initial
+        capital, optimization window, backtest window, benchmark metadata,
+        annualization convention, and risk-free rate.
+
+    Attributes
+    ----------
+    config : BacktestConfig
+        Configuration used by all data preparation, optimization, simulation,
+        benchmark, and metrics steps.
+
+    Notes
+    -----
+    A static backtest uses a single allocation per strategy. The engine
+    optimizes each strategy on `prices_optimization`, applies the resulting
+    weights unchanged across `prices_backtest`, and compounds daily portfolio
+    returns from `initial_capital`.
+
+    Examples
+    --------
+    >>> config = BacktestConfig(
+    ...     tickers=["AAPL", "MSFT"],
+    ...     initial_capital=100_000,
+    ...     optimization_start="2020-01-01",
+    ...     backtest_start="2021-01-01",
+    ...     end="2022-01-01",
+    ... )
+    >>> engine = Backtester(config)
+    >>> strategy = MeanVarianceStrategy("minimum_variance")
+    >>> result = engine.run(strategy, prices=prices)
+    >>> result.metrics
     """
 
     def __init__(self, config: BacktestConfig) -> None:
@@ -53,7 +92,21 @@ class Backtester:
         return research.get_prices(self.config.tickers)
 
     def _prepare_prices(self, prices: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-        """Return validated prices aligned with the configured ticker order."""
+        """
+        Return validated prices aligned with the configured ticker order.
+
+        Parameters
+        ----------
+        prices : pandas.DataFrame, optional
+            User-supplied asset prices. If omitted, prices are downloaded with
+            `_load_prices`.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Clean price table sliced to the configured global window and ordered
+            by `config.tickers`.
+        """
         if prices is None:
             return normalize_prices(self._load_prices())
 
@@ -75,7 +128,20 @@ class Backtester:
         return prepared
 
     def _split_prices(self, prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Split the full price table into optimization and backtest windows."""
+        """
+        Split the full price table into optimization and backtest windows.
+
+        Parameters
+        ----------
+        prices : pandas.DataFrame
+            Prepared asset prices covering the configured date range.
+
+        Returns
+        -------
+        tuple of pandas.DataFrame
+            `(prices_optimization, prices_backtest)` used for weight estimation
+            and fixed-weight simulation.
+        """
         if self.config.reuse_optimization_window:
             prices_window = slice_time_window(
                 prices,
@@ -107,7 +173,19 @@ class Backtester:
         self,
         strategies: AllocationStrategy | Sequence[AllocationStrategy],
     ) -> list[AllocationStrategy]:
-        """Normalize the strategy input into a validated list."""
+        """
+        Normalize the strategy input into a validated list.
+
+        Parameters
+        ----------
+        strategies : AllocationStrategy or sequence of AllocationStrategy
+            Strategy or strategies passed to `run`.
+
+        Returns
+        -------
+        list of AllocationStrategy
+            Non-empty list of strategies with unique names.
+        """
         if isinstance(strategies, AllocationStrategy):
             resolved = [strategies]
         else:
@@ -127,7 +205,22 @@ class Backtester:
         allocation: StrategyAllocation,
         prices_backtest: pd.DataFrame,
     ) -> BacktestStrategyResult:
-        """Simulate portfolio returns and wealth path for one allocation."""
+        """
+        Simulate portfolio returns and wealth path for one allocation.
+
+        Parameters
+        ----------
+        allocation : StrategyAllocation
+            Optimized static allocation returned by a strategy.
+        prices_backtest : pandas.DataFrame
+            Price window used for fixed-weight simulation.
+
+        Returns
+        -------
+        BacktestStrategyResult
+            Per-strategy output with returns, wealth evolution, and optimizer
+            metadata.
+        """
         returns_backtest = prices_backtest.pct_change().dropna()
         portfolio_returns = (returns_backtest @ allocation.weights).rename(allocation.name)
         evolution = (
@@ -164,7 +257,20 @@ class Backtester:
         self,
         optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> Optional[pd.Series]:
-        """Validate and slice the optimization benchmark to the in-sample window."""
+        """
+        Validate and slice the optimization benchmark to the in-sample window.
+
+        Parameters
+        ----------
+        optimization_benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Benchmark prices supplied to strategies during optimization.
+
+        Returns
+        -------
+        pandas.Series or None
+            Clean benchmark prices aligned to the optimization window, or `None`
+            when no benchmark was supplied.
+        """
         if optimization_benchmark_prices is None:
             return None
 
@@ -196,7 +302,21 @@ class Backtester:
         self,
         benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> tuple[Optional[pd.Series], Optional[pd.Series]]:
-        """Build benchmark return and wealth series when a benchmark is available."""
+        """
+        Build benchmark return and wealth series when a benchmark is available.
+
+        Parameters
+        ----------
+        benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            User-supplied benchmark prices. If omitted and `benchmark_ticker` is
+            configured, prices are downloaded with `_load_benchmark_prices`.
+
+        Returns
+        -------
+        tuple of pandas.Series or None
+            `(benchmark_returns, benchmark_evolution)` when a benchmark is
+            available; otherwise `(None, None)`.
+        """
         if benchmark_prices is None and self.config.benchmark_ticker is None:
             return None, None
 
@@ -227,7 +347,22 @@ class Backtester:
         returns: pd.DataFrame,
         evolution: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Compute the summary metrics table used in the backtest output."""
+        """
+        Compute the summary metrics table used in the backtest output.
+
+        Parameters
+        ----------
+        returns : pandas.DataFrame
+            Strategy and optional benchmark return series.
+        evolution : pandas.DataFrame
+            Strategy and optional benchmark wealth paths.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Metrics table with expected return, effective return, volatility,
+            Sharpe ratio, downside, upside, and Omega ratio.
+        """
         expected_return = returns.mean() * self.config.trading_days
         effective_return = evolution.iloc[-1] / self.config.initial_capital - 1.0
         volatility = returns.std() * np.sqrt(self.config.trading_days)
@@ -257,7 +392,42 @@ class Backtester:
         benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
         optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> BacktestResult:
-        """Execute the backtest for one or more allocation strategies."""
+        """
+        Execute a static backtest for one or more allocation strategies.
+
+        Parameters
+        ----------
+        strategies : AllocationStrategy or sequence of AllocationStrategy
+            Strategy, or strategies, to evaluate. Each strategy must expose a
+            unique `name` and implement `optimize(prices,
+            optimization_benchmark_prices=None)`.
+        prices : pandas.DataFrame, optional
+            Price history for the configured tickers. Columns must include all
+            tickers in `config.tickers`; extra columns are ignored. When omitted,
+            prices are downloaded with the configuration stored in `config`.
+        benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Passive benchmark prices used only for comparison in the output
+            returns, evolution, and metrics tables.
+        optimization_benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Benchmark prices passed to strategies during the optimization window
+            when the strategy requires a reference benchmark.
+
+        Returns
+        -------
+        BacktestResult
+            Full static backtest result. It contains the optimization prices,
+            backtest prices, per-strategy results, return series, wealth
+            evolution, and summary metrics.
+
+        Raises
+        ------
+        ValueError
+            If price data cannot produce valid optimization or backtest windows,
+            a benchmark window is too short, required tickers are missing, no
+            strategies are supplied, or strategy names are duplicated.
+        RuntimeError
+            If one of the supplied strategies fails during optimization.
+        """
         resolved_strategies = self._resolve_strategies(strategies)
         full_prices = self._prepare_prices(prices)
         prices_optimization, prices_backtest = self._split_prices(full_prices)

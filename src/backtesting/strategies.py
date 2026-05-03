@@ -1,4 +1,10 @@
-"""Strategy adapters used by the composition-based backtesting engine."""
+"""Strategy adapters used by the backtesting engines.
+
+This module provides a common `AllocationStrategy` interface plus adapters for
+the mean-variance and post-modern optimizers. The engines depend only on this
+interface, so each strategy is responsible for estimating weights while the
+engines handle simulation, benchmark comparison, and metrics.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +33,24 @@ class AllocationStrategy(ABC):
     Concrete subclasses are responsible only for weight estimation. They do
     not perform the actual capital simulation; that work is delegated to
     `Backtester`.
+
+    Parameters
+    ----------
+    name : str, optional
+        Custom display name used in result dictionaries and output columns.
+        When omitted, `default_name` is used.
+
+    Attributes
+    ----------
+    name : str
+        Effective strategy name, either user supplied or derived from the
+        concrete strategy implementation.
+
+    Notes
+    -----
+    Subclasses must implement `default_name` and `optimize`. The `optimize`
+    method must return a `StrategyAllocation` whose weight order matches the
+    columns of the price window supplied by the engine.
     """
 
     def __init__(self, name: Optional[str] = None) -> None:
@@ -35,11 +59,25 @@ class AllocationStrategy(ABC):
     @property
     @abstractmethod
     def default_name(self) -> str:
-        """Default human-readable label for the strategy."""
+        """
+        Default human-readable label for the strategy.
+
+        Returns
+        -------
+        str
+            Fallback strategy label used when `name` was not provided.
+        """
 
     @property
     def name(self) -> str:
-        """Return the user-defined name or the strategy default label."""
+        """
+        Return the effective strategy label.
+
+        Returns
+        -------
+        str
+            User-defined label when available; otherwise `default_name`.
+        """
         return self._name or self.default_name
 
     @abstractmethod
@@ -48,11 +86,46 @@ class AllocationStrategy(ABC):
         prices: pd.DataFrame,
         optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> StrategyAllocation:
-        """Estimate the portfolio allocation on the provided price window."""
+        """
+        Estimate portfolio weights on the provided price window.
+
+        Parameters
+        ----------
+        prices : pandas.DataFrame
+            In-sample price window used to estimate the allocation.
+        optimization_benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Benchmark price window for objectives that require a reference
+            benchmark.
+
+        Returns
+        -------
+        StrategyAllocation
+            Optimized allocation ready for simulation by the backtesting engine.
+        """
 
 
 class MeanVarianceStrategy(AllocationStrategy):
-    """Adapter around the mean-variance optimization objectives."""
+    """
+    Adapter around mean-variance optimization objectives.
+
+    Parameters
+    ----------
+    objective : {"minimum_variance", "maximum_sharpe"}
+        Mean-variance objective to optimize.
+    config : OptimizationConfig, optional
+        Optimizer configuration. If omitted, a default
+        `MinimumVarianceConfig` is used for `"minimum_variance"` and a default
+        `OptimizationConfig` is used for `"maximum_sharpe"`.
+    name : str, optional
+        Custom display name for result tables.
+
+    Raises
+    ------
+    ValueError
+        If `objective` is not supported.
+    RuntimeError
+        If the underlying optimizer reports an unsuccessful result.
+    """
 
     _DEFAULT_NAMES = {
         "minimum_variance": "Min Var",
@@ -76,7 +149,15 @@ class MeanVarianceStrategy(AllocationStrategy):
 
     @property
     def default_name(self) -> str:
-        """Default display name associated with the selected objective."""
+        """
+        Default display name associated with the selected objective.
+
+        Returns
+        -------
+        str
+            `"Min Var"` for minimum variance or `"Max Sharpe"` for maximum
+            Sharpe.
+        """
         return self._DEFAULT_NAMES[self.objective]
 
     def optimize(
@@ -84,7 +165,28 @@ class MeanVarianceStrategy(AllocationStrategy):
         prices: pd.DataFrame,
         optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> StrategyAllocation:
-        """Optimize portfolio weights on the provided in-sample window."""
+        """
+        Optimize mean-variance portfolio weights.
+
+        Parameters
+        ----------
+        prices : pandas.DataFrame
+            In-sample asset prices. Columns define the ticker order used by the
+            returned weights.
+        optimization_benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Accepted for interface compatibility and ignored by this strategy.
+
+        Returns
+        -------
+        StrategyAllocation
+            Mean-variance allocation with weights, readable ticker weights, and
+            the raw optimizer result.
+
+        Raises
+        ------
+        RuntimeError
+            If the optimizer does not converge successfully.
+        """
         del optimization_benchmark_prices
 
         config = self.config
@@ -118,7 +220,33 @@ class MeanVarianceStrategy(AllocationStrategy):
 
 
 class PostModernStrategy(AllocationStrategy):
-    """Adapter around the post-modern optimization objectives."""
+    """
+    Adapter around post-modern optimization objectives.
+
+    Parameters
+    ----------
+    objective : {"minimum_semivariance", "maximum_omega"}
+        Post-modern objective to optimize.
+    config : PostModernOptimizationConfig, optional
+        Optimizer configuration. If omitted, the strategy creates a default
+        `MinimumSemivarianceConfig` or `MaximumOmegaConfig` according to
+        `objective`.
+    name : str, optional
+        Custom display name for result tables.
+
+    Notes
+    -----
+    `minimum_semivariance` can consume `optimization_benchmark_prices`; the
+    benchmark is converted to returns and passed to the optimizer. `maximum_omega`
+    does not use a benchmark.
+
+    Raises
+    ------
+    ValueError
+        If `objective` is not supported.
+    RuntimeError
+        If the underlying optimizer reports an unsuccessful result.
+    """
 
     _DEFAULT_NAMES = {
         "minimum_semivariance": "Min Semivar",
@@ -142,7 +270,15 @@ class PostModernStrategy(AllocationStrategy):
 
     @property
     def default_name(self) -> str:
-        """Default display name associated with the selected objective."""
+        """
+        Default display name associated with the selected objective.
+
+        Returns
+        -------
+        str
+            `"Min Semivar"` for minimum semivariance or `"Max Omega"` for
+            maximum Omega.
+        """
         return self._DEFAULT_NAMES[self.objective]
 
     def optimize(
@@ -150,7 +286,32 @@ class PostModernStrategy(AllocationStrategy):
         prices: pd.DataFrame,
         optimization_benchmark_prices: Optional[pd.Series | pd.DataFrame] = None,
     ) -> StrategyAllocation:
-        """Optimize post-modern portfolio weights on the provided price window."""
+        """
+        Optimize post-modern portfolio weights.
+
+        Parameters
+        ----------
+        prices : pandas.DataFrame
+            In-sample asset prices. Columns define the ticker order used by the
+            returned weights.
+        optimization_benchmark_prices : pandas.Series or pandas.DataFrame, optional
+            Benchmark prices used by the minimum-semivariance objective when a
+            benchmark-relative downside measure is desired.
+
+        Returns
+        -------
+        StrategyAllocation
+            Post-modern allocation with weights, readable ticker weights, and
+            the raw optimizer result.
+
+        Raises
+        ------
+        ValueError
+            If benchmark prices are supplied as a DataFrame with more than one
+            column.
+        RuntimeError
+            If the optimizer does not converge successfully.
+        """
         config = self.config
         if config is None:
             if self.objective == "minimum_semivariance":

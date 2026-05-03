@@ -1,4 +1,9 @@
-"""Correlation-based portfolio selection implemented in the new layer."""
+"""Correlation-based portfolio selection.
+
+This module ranks assets by peer correlation within groups, builds diversified
+cross-group candidate portfolios, and suggests low-correlation additions to an
+existing portfolio.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +18,22 @@ from ..research.assets_research import yf
 
 @dataclass(init=False)
 class CorrelationPortfolioSelector:
-    """Build diversified candidate portfolios using low-correlation ranking."""
+    """
+    Build diversified candidate portfolios using low-correlation ranking.
+
+    Parameters
+    ----------
+    start_date : str
+        First date requested for price history.
+    end_date : str, optional
+        Optional exclusive end date requested for price history.
+    price_field : str, default "Close"
+        Price field selected from downloaded data.
+    use_absolute_corr : bool, default True
+        Whether ranking scores use absolute correlations.
+    min_coverage : float, default 0.80
+        Minimum non-null price coverage required to keep a downloaded asset.
+    """
 
     start_date: str
     end_date: Optional[str] = None
@@ -134,7 +154,23 @@ class CorrelationPortfolioSelector:
         intra_group_weights: Optional[Dict[str, Dict[str, float]]] = None,
         top_k: int = 1,
     ) -> pd.DataFrame:
-        """Rank assets inside each group from lower to higher correlation."""
+        """
+        Rank assets inside each group from lower to higher correlation.
+
+        Parameters
+        ----------
+        grouped_tickers : dict of str to sequence of str
+            Mapping from group name to candidate tickers.
+        intra_group_weights : dict, optional
+            Optional peer weights by group and ticker.
+        top_k : int, default 1
+            Number of assets marked as selected inside each group.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Group-level ranking with correlation score, rank, and selected flag.
+        """
         if top_k < 1:
             raise ValueError("top_k debe ser >= 1.")
 
@@ -192,7 +228,22 @@ class CorrelationPortfolioSelector:
         top_k_per_group: int = 1,
         final_size: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Build the final cross-group portfolio from the ranked candidates."""
+        """
+        Build the final cross-group portfolio from ranked candidates.
+
+        Parameters
+        ----------
+        top_k_per_group : int, default 1
+            Number of candidates considered from each group ranking.
+        final_size : int, optional
+            Final number of tickers selected from cross-group candidates.
+
+        Returns
+        -------
+        dict
+            Per-group selection, candidate tickers, correlation matrices,
+            scores, final tickers, and final mean off-diagonal correlation.
+        """
         if self.ranking_by_group.empty:
             raise ValueError("Primero ejecuta rank_within_groups(...).")
         if top_k_per_group < 1:
@@ -254,7 +305,24 @@ class CorrelationPortfolioSelector:
         candidate_tickers: Sequence[str],
         max_new_assets: int = 1,
     ) -> Dict[str, Any]:
-        """Add low-correlation candidates to an existing portfolio."""
+        """
+        Add low-correlation candidates to an existing portfolio.
+
+        Parameters
+        ----------
+        current_tickers : sequence of str
+            Existing portfolio tickers.
+        candidate_tickers : sequence of str
+            Candidate additions.
+        max_new_assets : int, default 1
+            Maximum number of candidates to add.
+
+        Returns
+        -------
+        dict
+            Updated ticker list, selected new tickers, candidate scores, and
+            correlation matrix when candidates are available.
+        """
         if max_new_assets < 1:
             raise ValueError("max_new_assets debe ser >= 1.")
 
@@ -306,7 +374,25 @@ class CorrelationPortfolioSelector:
         final_size: Optional[int] = None,
         intra_group_weights: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> Dict[str, Any]:
-        """Execute the grouped selection workflow end to end."""
+        """
+        Execute the grouped selection workflow end to end.
+
+        Parameters
+        ----------
+        grouped_tickers : dict of str to sequence of str
+            Mapping from group name to candidate tickers.
+        top_k_in_group : int, default 1
+            Number of assets selected inside each group.
+        final_size : int, optional
+            Final number of tickers selected from cross-group candidates.
+        intra_group_weights : dict, optional
+            Optional peer weights by group and ticker.
+
+        Returns
+        -------
+        dict
+            Group ranking plus the multigroup portfolio output.
+        """
         ranking = self.rank_within_groups(
             grouped_tickers=grouped_tickers,
             intra_group_weights=intra_group_weights,
