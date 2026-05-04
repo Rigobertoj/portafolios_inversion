@@ -9,8 +9,10 @@ engines handle simulation, benchmark comparison, and metrics.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from dataclasses import replace
+from typing import Optional, Sequence, Tuple
 
+import numpy as np
 import pandas as pd
 
 from ..optimization.configs import (
@@ -24,6 +26,123 @@ from ..optimization.mean_variance import MeanVarianceOptimizer
 from ..optimization.postmodern import PostModernOptimizer
 from ._helpers import build_portfolio, normalize_benchmark_prices
 from .results import StrategyAllocation
+
+
+_TRADING_DAYS = 252.0
+_RETURN_CAP_TOLERANCE = 1e-10
+
+
+def _resolve_config_bounds(
+    config: OptimizationConfig | PostModernOptimizationConfig,
+    n_assets: int,
+) -> Sequence[Tuple[float, float]]:
+    if config.bounds is not None:
+        if len(config.bounds) != n_assets:
+            raise ValueError("bounds length must match number of assets.")
+        return [tuple(map(float, bound)) for bound in config.bounds]
+
+    if config.allow_short:
+        return [(-1.0, 1.0)] * n_assets
+
+    return [(0.0, 1.0)] * n_assets
+
+
+def _maximum_feasible_return(
+    expected_returns: np.ndarray,
+    bounds: Sequence[Tuple[float, float]],
+) -> float:
+    lower = np.asarray([bound[0] for bound in bounds], dtype=float)
+    upper = np.asarray([bound[1] for bound in bounds], dtype=float)
+
+    if np.any(upper < lower):
+        raise ValueError(
+            "bounds upper values must be greater than or equal to lower values."
+        )
+
+    residual = 1.0 - float(lower.sum())
+    capacity = upper - lower
+    if (
+        residual < -_RETURN_CAP_TOLERANCE
+        or residual > float(capacity.sum()) + _RETURN_CAP_TOLERANCE
+    ):
+        raise ValueError("bounds must allow portfolio weights to sum to 1.")
+
+    weights = lower.copy()
+    remaining = max(residual, 0.0)
+    for index in np.argsort(expected_returns)[::-1]:
+        allocation = min(float(capacity[index]), remaining)
+        if allocation > 0.0:
+            weights[index] += allocation
+            remaining -= allocation
+        if remaining <= _RETURN_CAP_TOLERANCE:
+            break
+
+    return float(weights @ expected_returns)
+
+
+def _annual_returns_vector(prices: pd.DataFrame) -> np.ndarray:
+    normalized_prices = prices.sort_index().dropna()
+    returns = normalized_prices.pct_change().dropna()
+    if returns.empty:
+        raise ValueError("optimization window must contain at least one return row.")
+
+    expected_returns = (
+        returns.mean().loc[normalized_prices.columns].to_numpy(dtype=float)
+        * _TRADING_DAYS
+    )
+    if not np.isfinite(expected_returns).all():
+        raise ValueError("expected returns must be finite to cap minimum_return.")
+    return expected_returns
+
+
+def _minimum_return_tolerance(maximum_return: float) -> float:
+    return max(_RETURN_CAP_TOLERANCE, abs(maximum_return) * _RETURN_CAP_TOLERANCE)
+
+
+def _cap_minimum_return_for_window(
+    config: OptimizationConfig | PostModernOptimizationConfig,
+    prices: pd.DataFrame,
+) -> tuple[
+    OptimizationConfig | PostModernOptimizationConfig,
+    Optional[float],
+    Optional[float],
+    Optional[float],
+    bool,
+]:
+    requested = getattr(config, "minimum_return", None)
+    if requested is None:
+        return config, None, None, None, False
+
+    requested_return = float(requested)
+    if not np.isfinite(requested_return):
+        raise ValueError("minimum_return must be finite.")
+
+    expected_returns = _annual_returns_vector(prices)
+    bounds = _resolve_config_bounds(config, len(expected_returns))
+    maximum_return = _maximum_feasible_return(expected_returns, bounds)
+    effective_return = requested_return
+    was_capped = False
+
+    if requested_return > maximum_return:
+        effective_return = maximum_return - _minimum_return_tolerance(maximum_return)
+        config = replace(config, minimum_return=effective_return)
+        was_capped = True
+
+    return config, requested_return, effective_return, maximum_return, was_capped
+
+
+def _annotate_minimum_return(
+    result,
+    *,
+    requested: Optional[float],
+    effective: Optional[float],
+    maximum: Optional[float],
+    was_capped: bool,
+) -> None:
+    result.requested_minimum_return = requested
+    result.effective_minimum_return = effective
+    result.maximum_feasible_return = maximum
+    result.minimum_return_was_capped = was_capped
 
 
 class AllocationStrategy(ABC):
@@ -196,6 +315,14 @@ class MeanVarianceStrategy(AllocationStrategy):
             else:
                 config = OptimizationConfig()
 
+        (
+            config,
+            requested_minimum_return,
+            effective_minimum_return,
+            maximum_feasible_return,
+            minimum_return_was_capped,
+        ) = _cap_minimum_return_for_window(config, prices)
+
         portfolio = build_portfolio(
             prices,
             initial_weights=getattr(config, "initial_weights", None),
@@ -210,6 +337,14 @@ class MeanVarianceStrategy(AllocationStrategy):
 
         if not result.success:
             raise RuntimeError(f"{self.name} optimization failed: {result.message}")
+
+        _annotate_minimum_return(
+            result,
+            requested=requested_minimum_return,
+            effective=effective_minimum_return,
+            maximum=maximum_feasible_return,
+            was_capped=minimum_return_was_capped,
+        )
 
         return StrategyAllocation(
             name=self.name,
@@ -319,6 +454,14 @@ class PostModernStrategy(AllocationStrategy):
             else:
                 config = MaximumOmegaConfig()
 
+        (
+            config,
+            requested_minimum_return,
+            effective_minimum_return,
+            maximum_feasible_return,
+            minimum_return_was_capped,
+        ) = _cap_minimum_return_for_window(config, prices)
+
         portfolio = build_portfolio(
             prices,
             initial_weights=getattr(config, "initial_weights", None),
@@ -360,6 +503,14 @@ class PostModernStrategy(AllocationStrategy):
 
         if not result.success:
             raise RuntimeError(f"{self.name} optimization failed: {result.message}")
+
+        _annotate_minimum_return(
+            result,
+            requested=requested_minimum_return,
+            effective=effective_minimum_return,
+            maximum=maximum_feasible_return,
+            was_capped=minimum_return_was_capped,
+        )
 
         return StrategyAllocation(
             name=self.name,

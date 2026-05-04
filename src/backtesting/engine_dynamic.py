@@ -299,6 +299,7 @@ class DynamicBacktester(Backtester):
         cost_rows: dict[pd.Timestamp, float] = {}
         returns_rows: dict[pd.Timestamp, float] = {}
         evolution_rows: dict[pd.Timestamp, float] = {}
+        pre_back_rows: list[pd.Series] = []
 
         for position, rebalance_date in enumerate(rebalance_dates):
             next_rebalance = (
@@ -318,13 +319,22 @@ class DynamicBacktester(Backtester):
             )
             weights = np.asarray(allocation.weights, dtype=float)
             allocations[rebalance_date] = allocation
+            pre_back_metrics = self._compute_allocation_pre_back_metrics(
+                allocation=allocation,
+                prices=training_prices,
+                benchmark_prices=training_benchmark,
+            )
+            pre_back_metrics.name = rebalance_date
+            pre_back_rows.append(pre_back_metrics)
 
             if previous_weights is None:
                 turnover = 0.0
             else:
                 turnover = float(np.abs(weights - previous_weights).sum())
 
-            transaction_cost = current_value * turnover * self.rebalance_config.transaction_cost
+            transaction_cost = (
+                current_value * turnover * self.rebalance_config.transaction_cost
+            )
             current_value -= transaction_cost
             turnover_rows[rebalance_date] = turnover
             cost_rows[rebalance_date] = float(transaction_cost)
@@ -334,7 +344,9 @@ class DynamicBacktester(Backtester):
             weights_rows.append(weights_row)
 
             if next_rebalance is None:
-                segment_returns = returns_backtest[returns_backtest.index > rebalance_date]
+                segment_returns = returns_backtest[
+                    returns_backtest.index > rebalance_date
+                ]
             else:
                 segment_returns = returns_backtest[
                     (returns_backtest.index > rebalance_date)
@@ -342,7 +354,9 @@ class DynamicBacktester(Backtester):
                 ]
 
             for date, asset_returns in segment_returns.iterrows():
-                portfolio_return = float(asset_returns.to_numpy(dtype=float) @ weights)
+                portfolio_return = float(
+                    asset_returns.to_numpy(dtype=float) @ weights
+                )
                 current_value *= 1.0 + portfolio_return
                 returns_rows[pd.Timestamp(date)] = portfolio_return
                 evolution_rows[pd.Timestamp(date)] = current_value
@@ -355,6 +369,8 @@ class DynamicBacktester(Backtester):
         evolution = pd.Series(evolution_rows, name=strategy.name).sort_index()
         turnover = pd.Series(turnover_rows, name=strategy.name).sort_index()
         transaction_costs = pd.Series(cost_rows, name=strategy.name).sort_index()
+        pre_back_metrics = pd.DataFrame(pre_back_rows)
+        pre_back_metrics.index.name = "date"
 
         return DynamicBacktestStrategyResult(
             name=strategy.name,
@@ -364,6 +380,7 @@ class DynamicBacktester(Backtester):
             weights_history=weights_history,
             turnover=turnover,
             transaction_costs=transaction_costs,
+            pre_back_metrics=pre_back_metrics,
         )
 
     def run(
@@ -430,6 +447,7 @@ class DynamicBacktester(Backtester):
         weights_frames: list[pd.DataFrame] = []
         turnover_data: Dict[str, pd.Series] = {}
         cost_data: Dict[str, pd.Series] = {}
+        pre_back_data: Dict[str, pd.Series] = {}
 
         for strategy in resolved_strategies:
             result = self._simulate_strategy(
@@ -444,6 +462,7 @@ class DynamicBacktester(Backtester):
             evolution_data[result.name] = result.evolution
             turnover_data[result.name] = result.turnover
             cost_data[result.name] = result.transaction_costs
+            pre_back_data[result.name] = result.pre_back_metrics.mean()
 
             weights_frame = result.weights_history.copy()
             weights_frame.insert(0, "strategy", result.name)
@@ -458,7 +477,6 @@ class DynamicBacktester(Backtester):
 
         returns = pd.DataFrame(returns_data)
         evolution = pd.DataFrame(evolution_data)
-        metrics = self._compute_metrics(returns=returns, evolution=evolution)
 
         weights_history = (
             pd.concat(weights_frames)
@@ -467,6 +485,27 @@ class DynamicBacktester(Backtester):
         )
         turnover = pd.DataFrame(turnover_data)
         transaction_costs = pd.DataFrame(cost_data)
+        pre_back_metrics = pd.DataFrame(pre_back_data)
+        gross_metrics = self._compute_performance_metrics(
+            returns=returns,
+            benchmark_returns=benchmark_returns,
+            use_evolution_returns=False,
+        )
+        net_metrics = self._compute_performance_metrics(
+            returns=returns,
+            evolution=evolution,
+            benchmark_returns=benchmark_returns,
+            use_evolution_returns=True,
+        )
+        execution_metrics = self._compute_execution_metrics(
+            columns=net_metrics.columns,
+            turnover=turnover,
+            transaction_costs=transaction_costs,
+        )
+        metrics = self._combine_summary_metrics(
+            net_metrics=net_metrics,
+            execution_metrics=execution_metrics,
+        )
 
         return DynamicBacktestResult(
             config=self.config,
@@ -477,6 +516,10 @@ class DynamicBacktester(Backtester):
             returns=returns,
             evolution=evolution,
             metrics=metrics,
+            pre_back_metrics=pre_back_metrics,
+            gross_metrics=gross_metrics,
+            net_metrics=net_metrics,
+            execution_metrics=execution_metrics,
             weights_history=weights_history,
             turnover=turnover,
             transaction_costs=transaction_costs,

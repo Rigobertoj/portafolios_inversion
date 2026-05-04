@@ -230,6 +230,14 @@ class BacktestResult:
         Strategy and optional benchmark wealth paths aligned by date.
     metrics : pandas.DataFrame
         Summary metrics table computed from `returns` and `evolution`.
+    pre_back_metrics : pandas.DataFrame
+        In-sample metrics estimated from the optimization window.
+    gross_metrics : pandas.DataFrame
+        Out-of-sample metrics before transaction costs.
+    net_metrics : pandas.DataFrame
+        Out-of-sample metrics after transaction costs.
+    execution_metrics : pandas.DataFrame
+        Turnover and transaction-cost metrics.
     """
 
     config: BacktestConfig
@@ -239,6 +247,10 @@ class BacktestResult:
     returns: pd.DataFrame
     evolution: pd.DataFrame
     metrics: pd.DataFrame
+    pre_back_metrics: pd.DataFrame
+    gross_metrics: pd.DataFrame
+    net_metrics: pd.DataFrame
+    execution_metrics: pd.DataFrame
 
 
 @dataclass
@@ -262,6 +274,8 @@ class DynamicBacktestStrategyResult:
         Turnover charged at each rebalance date.
     transaction_costs : pandas.Series
         Currency amount subtracted from portfolio value at each rebalance.
+    pre_back_metrics : pandas.DataFrame
+        Metrics estimated at each rebalance from the training window.
     """
 
     name: str
@@ -271,6 +285,7 @@ class DynamicBacktestStrategyResult:
     weights_history: pd.DataFrame
     turnover: pd.Series
     transaction_costs: pd.Series
+    pre_back_metrics: pd.DataFrame
 
 
 @dataclass
@@ -296,6 +311,14 @@ class DynamicBacktestResult:
         Strategy and optional benchmark wealth paths aligned by date.
     metrics : pandas.DataFrame
         Summary metrics table computed from `returns` and `evolution`.
+    pre_back_metrics : pandas.DataFrame
+        Average in-sample metrics across rebalance windows.
+    gross_metrics : pandas.DataFrame
+        Out-of-sample metrics before transaction costs.
+    net_metrics : pandas.DataFrame
+        Out-of-sample metrics after transaction costs.
+    execution_metrics : pandas.DataFrame
+        Turnover and transaction-cost metrics.
     weights_history : pandas.DataFrame
         Combined rebalance-date weight table for all strategies.
     turnover : pandas.DataFrame
@@ -312,6 +335,10 @@ class DynamicBacktestResult:
     returns: pd.DataFrame
     evolution: pd.DataFrame
     metrics: pd.DataFrame
+    pre_back_metrics: pd.DataFrame
+    gross_metrics: pd.DataFrame
+    net_metrics: pd.DataFrame
+    execution_metrics: pd.DataFrame
     weights_history: pd.DataFrame
     turnover: pd.DataFrame
     transaction_costs: pd.DataFrame

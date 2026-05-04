@@ -8,7 +8,7 @@ portfolio statistics computed from the final allocation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,14 @@ class OptimizationResult:
         Value used to summarize the optimized objective.
     iterations : int
         Number of solver iterations reported by the backend.
+    requested_minimum_return : float, optional
+        Annualized minimum return originally requested by a strategy.
+    effective_minimum_return : float, optional
+        Annualized minimum return actually passed to the optimizer.
+    maximum_feasible_return : float, optional
+        Highest annualized return feasible under the configured bounds.
+    minimum_return_was_capped : bool, default False
+        Whether the requested minimum return was capped before optimization.
     """
 
     objective: str
@@ -59,6 +67,10 @@ class OptimizationResult:
     sharpe: float
     objective_value: float
     iterations: int
+    requested_minimum_return: Optional[float] = None
+    effective_minimum_return: Optional[float] = None
+    maximum_feasible_return: Optional[float] = None
+    minimum_return_was_capped: bool = False
 
     @classmethod
     def from_legacy(cls, result: Any) -> "OptimizationResult":
@@ -89,6 +101,24 @@ class OptimizationResult:
             sharpe=float(getattr(result, "sharpe")),
             objective_value=float(getattr(result, "objective_value")),
             iterations=int(getattr(result, "iterations")),
+            requested_minimum_return=getattr(
+                result,
+                "requested_minimum_return",
+                None,
+            ),
+            effective_minimum_return=getattr(
+                result,
+                "effective_minimum_return",
+                None,
+            ),
+            maximum_feasible_return=getattr(
+                result,
+                "maximum_feasible_return",
+                None,
+            ),
+            minimum_return_was_capped=bool(
+                getattr(result, "minimum_return_was_capped", False)
+            ),
         )
 
 
@@ -123,6 +153,14 @@ class PostModernOptimizationResult:
         Value used to summarize the optimized objective.
     iterations : int
         Number of solver iterations reported by the backend.
+    requested_minimum_return : float, optional
+        Annualized minimum return originally requested by a strategy.
+    effective_minimum_return : float, optional
+        Annualized minimum return actually passed to the optimizer.
+    maximum_feasible_return : float, optional
+        Highest annualized return feasible under the configured bounds.
+    minimum_return_was_capped : bool, default False
+        Whether the requested minimum return was capped before optimization.
     """
 
     objective: str
@@ -137,6 +175,10 @@ class PostModernOptimizationResult:
     omega: float
     objective_value: float
     iterations: int
+    requested_minimum_return: Optional[float] = None
+    effective_minimum_return: Optional[float] = None
+    maximum_feasible_return: Optional[float] = None
+    minimum_return_was_capped: bool = False
 
     @classmethod
     def from_legacy(
@@ -170,6 +212,24 @@ class PostModernOptimizationResult:
             omega=float(getattr(result, "omega")),
             objective_value=float(getattr(result, "objective_value")),
             iterations=int(getattr(result, "iterations")),
+            requested_minimum_return=getattr(
+                result,
+                "requested_minimum_return",
+                None,
+            ),
+            effective_minimum_return=getattr(
+                result,
+                "effective_minimum_return",
+                None,
+            ),
+            maximum_feasible_return=getattr(
+                result,
+                "maximum_feasible_return",
+                None,
+            ),
+            minimum_return_was_capped=bool(
+                getattr(result, "minimum_return_was_capped", False)
+            ),
         )
 
 

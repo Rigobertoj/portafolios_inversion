@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Sequence
 
-import numpy as np
 import pandas as pd
 
+from ..portfolio.performance_metrics import PerformanceMetricsCalculator
 from ..research.assets_research import AssetsResearch
 from ._helpers import normalize_benchmark_prices, normalize_prices, slice_time_window
 from .results import (
@@ -342,13 +342,52 @@ class Backtester:
         ).rename(benchmark.name)
         return benchmark_returns, benchmark_evolution
 
-    def _compute_metrics(
+    def _benchmark_returns_from_prices(
+        self,
+        benchmark_prices: Optional[pd.Series],
+    ) -> Optional[pd.Series]:
+        if benchmark_prices is None:
+            return None
+        return benchmark_prices.pct_change().dropna().rename(benchmark_prices.name)
+
+    def _compute_allocation_pre_back_metrics(
+        self,
+        allocation: StrategyAllocation,
+        prices: pd.DataFrame,
+        benchmark_prices: Optional[pd.Series] = None,
+    ) -> pd.Series:
+        """Estimate in-sample metrics for one optimized allocation."""
+        training_returns = prices.pct_change().dropna()
+        portfolio_returns = (training_returns @ allocation.weights).rename(
+            allocation.name
+        )
+        evolution = (
+            self.config.initial_capital * (1.0 + portfolio_returns).cumprod()
+        ).rename(allocation.name)
+        benchmark_returns = self._benchmark_returns_from_prices(benchmark_prices)
+        calculator = PerformanceMetricsCalculator(
+            returns=portfolio_returns,
+            evolution=evolution,
+            initial_value=self.config.initial_capital,
+            benchmark_returns=benchmark_returns,
+            risk_free_rate=self.config.risk_free_rate,
+            trading_days=self.config.trading_days,
+            use_evolution_returns=True,
+        )
+        metrics = calculator.metrics_table().iloc[:, 0]
+        metrics.name = allocation.name
+        return metrics
+
+    def _compute_performance_metrics(
         self,
         returns: pd.DataFrame,
-        evolution: pd.DataFrame,
+        evolution: Optional[pd.DataFrame] = None,
+        *,
+        benchmark_returns: Optional[pd.Series] = None,
+        use_evolution_returns: bool = False,
     ) -> pd.DataFrame:
         """
-        Compute the summary metrics table used in the backtest output.
+        Compute portfolio-performance metrics shared by portfolio and backtest.
 
         Parameters
         ----------
@@ -360,29 +399,54 @@ class Backtester:
         Returns
         -------
         pandas.DataFrame
-            Metrics table with expected return, effective return, volatility,
-            Sharpe ratio, downside, upside, and Omega ratio.
+            Metrics table with one column per strategy or benchmark.
         """
-        expected_return = returns.mean() * self.config.trading_days
-        effective_return = evolution.iloc[-1] / self.config.initial_capital - 1.0
-        volatility = returns.std() * np.sqrt(self.config.trading_days)
-        sharpe = (expected_return - self.config.risk_free_rate) / volatility.replace(0.0, np.nan)
+        benchmark_name = (
+            benchmark_returns.name
+            if benchmark_returns is not None
+            else None
+        )
+        calculator = PerformanceMetricsCalculator(
+            returns=returns,
+            evolution=evolution,
+            initial_value=self.config.initial_capital,
+            benchmark_returns=benchmark_returns,
+            benchmark_name=benchmark_name,
+            risk_free_rate=self.config.risk_free_rate,
+            trading_days=self.config.trading_days,
+            use_evolution_returns=use_evolution_returns,
+        )
+        return calculator.metrics_table()
 
-        downside = returns.where(returns < 0.0, 0.0).std() * np.sqrt(self.config.trading_days)
-        upside = returns.where(returns > 0.0, 0.0).std() * np.sqrt(self.config.trading_days)
-        omega = upside / downside.replace(0.0, np.nan)
+    def _compute_execution_metrics(
+        self,
+        columns: pd.Index,
+        turnover: Optional[pd.DataFrame] = None,
+        transaction_costs: Optional[pd.DataFrame] = None,
+    ) -> pd.DataFrame:
+        """Return turnover and cost metrics aligned to result columns."""
+        metrics = pd.DataFrame(columns=columns, dtype=float)
 
-        return pd.DataFrame(
-            {
-                "Rend Esperado": expected_return,
-                "Rend Efectivo": effective_return,
-                "Volatilidad": volatility,
-                "Sharpe": sharpe,
-                "Downside": downside,
-                "Upside": upside,
-                "Omega": omega,
-            }
-        ).T
+        if turnover is not None:
+            metrics.loc["Turnover promedio"] = turnover.mean().reindex(columns)
+            metrics.loc["Turnover acumulado"] = turnover.sum().reindex(columns)
+
+        if transaction_costs is not None:
+            total_costs = transaction_costs.sum().reindex(columns)
+            metrics.loc["Costos de transacción"] = total_costs
+            metrics.loc["Impacto de costos"] = total_costs / self.config.initial_capital
+
+        return metrics
+
+    def _combine_summary_metrics(
+        self,
+        net_metrics: pd.DataFrame,
+        execution_metrics: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Build the default summary table exposed as `result.metrics`."""
+        if execution_metrics.empty:
+            return net_metrics.copy()
+        return pd.concat([net_metrics, execution_metrics])
 
     def run(
         self,
@@ -438,6 +502,7 @@ class Backtester:
         strategy_results: Dict[str, BacktestStrategyResult] = {}
         returns_data: Dict[str, pd.Series] = {}
         evolution_data: Dict[str, pd.Series] = {}
+        pre_back_data: Dict[str, pd.Series] = {}
 
         for strategy in resolved_strategies:
             allocation = strategy.optimize(
@@ -448,6 +513,11 @@ class Backtester:
             strategy_results[result.name] = result
             returns_data[result.name] = result.portfolio_returns
             evolution_data[result.name] = result.evolution
+            pre_back_data[result.name] = self._compute_allocation_pre_back_metrics(
+                allocation=allocation,
+                prices=prices_optimization,
+                benchmark_prices=optimization_benchmark,
+            )
 
         benchmark_returns, benchmark_evolution = self._build_benchmark_result(
             benchmark_prices=benchmark_prices,
@@ -458,7 +528,25 @@ class Backtester:
 
         returns = pd.DataFrame(returns_data)
         evolution = pd.DataFrame(evolution_data)
-        metrics = self._compute_metrics(returns=returns, evolution=evolution)
+        pre_back_metrics = pd.DataFrame(pre_back_data)
+        gross_metrics = self._compute_performance_metrics(
+            returns=returns,
+            benchmark_returns=benchmark_returns,
+            use_evolution_returns=False,
+        )
+        net_metrics = self._compute_performance_metrics(
+            returns=returns,
+            evolution=evolution,
+            benchmark_returns=benchmark_returns,
+            use_evolution_returns=True,
+        )
+        execution_metrics = self._compute_execution_metrics(
+            columns=net_metrics.columns,
+        )
+        metrics = self._combine_summary_metrics(
+            net_metrics=net_metrics,
+            execution_metrics=execution_metrics,
+        )
 
         return BacktestResult(
             config=self.config,
@@ -468,6 +556,10 @@ class Backtester:
             returns=returns,
             evolution=evolution,
             metrics=metrics,
+            pre_back_metrics=pre_back_metrics,
+            gross_metrics=gross_metrics,
+            net_metrics=net_metrics,
+            execution_metrics=execution_metrics,
         )
 
 
