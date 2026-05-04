@@ -10,8 +10,13 @@ from src.backtesting import (
     Backtester,
     BacktestResult,
     BacktestStrategyResult,
+    DynamicBacktestEngine,
+    DynamicBacktestResult,
+    DynamicBacktestStrategyResult,
+    DynamicBacktester,
     MeanVarianceStrategy,
     PostModernStrategy,
+    RebalanceConfig,
     StaticBacktestEngine,
     StrategyAllocation,
 )
@@ -63,13 +68,16 @@ def test_public_packages_expose_expected_symbols():
         "FundamentalData",
         "FundamentalScoreConfig",
         "FundamentalSelector",
+        "FUNDAMENTAL_METRIC_SIGNAL_SPECS",
         "GrowthScoreConfig",
+        "MetricSignalSpec",
         "ValueScoreConfig",
         "YahooFundamentalsProvider",
         "build_fundamental_metric_history",
         "build_fundamental_metrics",
         "build_metric_history_frame",
         "build_metrics_frame",
+        "fundamental_metric_signal_specs",
         "score_fundamentals",
         "score_fundamentals_over_time",
     }
@@ -93,8 +101,13 @@ def test_public_packages_expose_expected_symbols():
         "BacktestResult",
         "BacktestStrategyResult",
         "Backtester",
+        "DynamicBacktestEngine",
+        "DynamicBacktestResult",
+        "DynamicBacktestStrategyResult",
+        "DynamicBacktester",
         "MeanVarianceStrategy",
         "PostModernStrategy",
+        "RebalanceConfig",
         "StaticBacktestEngine",
         "StrategyAllocation",
     }.issubset(set(backtesting_package.__all__))
@@ -152,12 +165,17 @@ def test_portfolio_and_optimization_exports_use_new_modules():
 def test_backtesting_and_risk_exports_use_new_modules():
     assert Backtester.__module__ == "src.backtesting.engine_static"
     assert StaticBacktestEngine.__module__ == "src.backtesting.engine_static"
+    assert DynamicBacktester.__module__ == "src.backtesting.engine_dynamic"
+    assert DynamicBacktestEngine.__module__ == "src.backtesting.engine_dynamic"
     assert AllocationStrategy.__module__ == "src.backtesting.strategies"
     assert MeanVarianceStrategy.__module__ == "src.backtesting.strategies"
     assert PostModernStrategy.__module__ == "src.backtesting.strategies"
     assert BacktestConfig.__module__ == "src.backtesting.results"
     assert BacktestResult.__module__ == "src.backtesting.results"
     assert BacktestStrategyResult.__module__ == "src.backtesting.results"
+    assert DynamicBacktestResult.__module__ == "src.backtesting.results"
+    assert DynamicBacktestStrategyResult.__module__ == "src.backtesting.results"
+    assert RebalanceConfig.__module__ == "src.backtesting.results"
     assert StrategyAllocation.__module__ == "src.backtesting.results"
     assert PortfolioDrawdownAnalysis.__module__ == "src.risk.drawdown"
     assert PortfolioTailRisk.__module__ == "src.risk.var_cvar"

@@ -14,8 +14,11 @@ from .fundamental_metrics import (
 )
 from .fundamental_scorers import (
     FundamentalScoreConfig,
+    FUNDAMENTAL_METRIC_SIGNAL_SPECS,
     GrowthScoreConfig,
+    MetricSignalSpec,
     ValueScoreConfig,
+    fundamental_metric_signal_specs,
     score_fundamentals,
     score_fundamentals_over_time,
 )
@@ -28,13 +31,16 @@ __all__ = [
     "FundamentalData",
     "FundamentalScoreConfig",
     "FundamentalSelector",
+    "FUNDAMENTAL_METRIC_SIGNAL_SPECS",
     "GrowthScoreConfig",
+    "MetricSignalSpec",
     "ValueScoreConfig",
     "YahooFundamentalsProvider",
     "build_fundamental_metric_history",
     "build_fundamental_metrics",
     "build_metric_history_frame",
     "build_metrics_frame",
+    "fundamental_metric_signal_specs",
     "score_fundamentals",
     "score_fundamentals_over_time",
 ]

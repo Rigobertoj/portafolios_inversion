@@ -142,7 +142,12 @@ class FundamentalSelector:
         )
         return self.metric_history_.copy()
 
-    def rank(self, tickers: Iterable[str]) -> pd.DataFrame:
+    def rank(
+        self,
+        tickers: Iterable[str],
+        frequency: StatementFrequency = "quarterly",
+        trailing_periods: int = 8,
+    ) -> pd.DataFrame:
         """
         Return a ranked DataFrame for the configured fundamental strategy.
 
@@ -150,6 +155,11 @@ class FundamentalSelector:
         ----------
         tickers : iterable of str
             Ticker symbols to rank.
+        frequency : {"annual", "quarterly"}, default "quarterly"
+            Statement frequency used when the score config needs historical
+            change signals.
+        trailing_periods : int, default 8
+            Maximum number of recent periods used for historical score signals.
 
         Returns
         -------
@@ -159,7 +169,21 @@ class FundamentalSelector:
         metrics = self.collect_metrics(tickers)
         if metrics.empty:
             raise ValueError("No fundamental metrics could be built for the ticker universe.")
-        self.ranking_ = score_fundamentals(metrics, self.score_config)
+        metric_history = None
+        if self.score_config.uses_historical_signals():
+            self.metric_history_ = build_metric_history_frame(
+                self.raw_data.values(),
+                frequency=frequency,
+                trailing_periods=trailing_periods,
+            )
+            metric_history = self.metric_history_
+
+        self.ranking_ = score_fundamentals(
+            metrics,
+            self.score_config,
+            metric_history=metric_history,
+            frequency=frequency,
+        )
         self.ranking_["strategy"] = self.score_config.name
         return self.ranking_.copy()
 
@@ -196,6 +220,7 @@ class FundamentalSelector:
         self.ranking_history_ = score_fundamentals_over_time(
             metric_history,
             self.score_config,
+            frequency=frequency,
         )
         return self.ranking_history_.copy()
 
@@ -245,31 +270,67 @@ class FundamentalSelector:
             scores.
         """
         selected = self.select_top(ranking=ranking, top_k=top_k)
-        metric_names = list(self.score_config.metric_weights.keys())
-        available_metrics = [metric for metric in metric_names if metric in selected.columns]
-        component_columns = [
-            f"{metric}_score"
-            for metric in available_metrics
-            if f"{metric}_score" in selected.columns
-        ]
-
-        weights = pd.DataFrame(
-            [
-                {
-                    "metric": metric,
-                    "weight": float(weight),
-                    "higher_is_better": bool(
-                        self.score_config.higher_is_better.get(metric, True)
-                    ),
-                    "component_column": f"{metric}_score",
-                }
-                for metric, weight in self.score_config.metric_weights.items()
+        signal_specs = self.score_config.resolved_signal_specs()
+        if signal_specs:
+            available_metrics = [
+                spec.signal_name for spec in signal_specs if spec.signal_name in selected.columns
             ]
-        )
+            component_columns = [
+                spec.component_name for spec in signal_specs if spec.component_name in selected.columns
+            ]
+            weights = pd.DataFrame(
+                [
+                    {
+                        "metric": spec.metric,
+                        "signal": spec.signal,
+                        "signal_column": spec.signal_name,
+                        "weight": float(spec.weight),
+                        "higher_is_better": bool(spec.higher_is_better),
+                        "normalizer": spec.normalizer,
+                        "change_method": spec.change_method,
+                        "category": spec.category,
+                        "component_column": spec.component_name,
+                    }
+                    for spec in signal_specs
+                ]
+            )
+        else:
+            metric_names = list(self.score_config.metric_weights.keys())
+            available_metrics = [metric for metric in metric_names if metric in selected.columns]
+            component_columns = [
+                f"{metric}_score"
+                for metric in available_metrics
+                if f"{metric}_score" in selected.columns
+            ]
+            weights = pd.DataFrame(
+                [
+                    {
+                        "metric": metric,
+                        "signal": "level",
+                        "signal_column": metric,
+                        "weight": float(weight),
+                        "higher_is_better": bool(
+                            self.score_config.higher_is_better.get(metric, True)
+                        ),
+                        "normalizer": "percentile_rank",
+                        "change_method": "legacy",
+                        "category": "legacy",
+                        "component_column": f"{metric}_score",
+                    }
+                    for metric, weight in self.score_config.metric_weights.items()
+                ]
+            )
 
         summary_columns = [
             column
-            for column in ["ticker", self.score_config.score_column, "strategy", "sector", "industry"]
+            for column in [
+                "ticker",
+                self.score_config.score_column,
+                "score_coverage",
+                "strategy",
+                "sector",
+                "industry",
+            ]
             if column in selected.columns
         ]
         metric_snapshot = selected[["ticker", *available_metrics]].copy()

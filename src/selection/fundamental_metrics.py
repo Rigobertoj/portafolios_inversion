@@ -133,6 +133,10 @@ def _period_growth(values: pd.Series, periods: int = 1) -> pd.Series:
     return numeric.pct_change(periods=periods, fill_method=None)
 
 
+def _abs_or_nan(value: float) -> float:
+    return abs(float(value)) if pd.notna(value) else np.nan
+
+
 def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
     """
     Build a normalized metric row from one company's raw fundamental data.
@@ -170,12 +174,52 @@ def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
         ["Net Income", "Net Income Common Stockholders", "Net Income From Continuing Operation Net Minority Interest"],
     )
     revenue = _latest_from_statement(income, ["Total Revenue", "Operating Revenue"])
+    cost_of_revenue = abs(_latest_from_statement(income, ["Cost Of Revenue", "Cost Of Goods Sold", "Cost of Revenue"]))
+    gross_profit = _latest_from_statement(income, ["Gross Profit"])
+    sga_expense = _latest_from_statement(
+        income,
+        [
+            "Selling General And Administration",
+            "Selling General Administrative",
+            "Selling General And Administrative",
+        ],
+    )
     operating_income = _latest_from_statement(income, ["Operating Income", "EBIT"])
+    pretax_income = _latest_from_statement(income, ["Pretax Income", "Income Before Tax"])
+    tax_expense = abs(_latest_from_statement(income, ["Tax Provision", "Income Tax Expense"]))
+    ebitda = _latest_from_statement(income, ["EBITDA", "Normalized EBITDA"])
     equity = _latest_from_statement(
         balance,
         ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"],
     )
     total_debt = _latest_from_statement(balance, ["Total Debt", "Long Term Debt"])
+    long_term_debt = _latest_from_statement(balance, ["Long Term Debt", "Long Term Debt And Capital Lease Obligation"])
+    total_assets = _latest_from_statement(balance, ["Total Assets"])
+    fixed_assets = _latest_from_statement(
+        balance,
+        ["Net PPE", "Property Plant Equipment", "Gross PPE", "Net Property Plant And Equipment"],
+    )
+    tangible_equity = _latest_from_statement(
+        balance,
+        ["Tangible Book Value", "Net Tangible Assets", "Tangible Common Equity"],
+    )
+    cash_and_short_term = _latest_from_statement(
+        balance,
+        [
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+            "Cash And Short Term Investments",
+        ],
+    )
+    receivables = _latest_from_statement(
+        balance,
+        ["Accounts Receivable", "Net Receivables", "Receivables"],
+    )
+    inventory = _latest_from_statement(balance, ["Inventory"])
+    payables = _latest_from_statement(
+        balance,
+        ["Accounts Payable", "Payables", "Payables And Accrued Expenses"],
+    )
     current_assets = _latest_from_statement(balance, ["Current Assets", "Total Current Assets"])
     current_liabilities = _latest_from_statement(
         balance,
@@ -183,6 +227,12 @@ def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
     )
     operating_cash_flow = _latest_from_statement(cash, ["Operating Cash Flow", "Total Cash From Operating Activities"])
     capital_expenditure = _latest_from_statement(cash, ["Capital Expenditure", "Capital Expenditures"])
+    dividends_paid = abs(
+        _latest_from_statement(
+            cash,
+            ["Cash Dividends Paid", "Common Stock Dividend Paid", "Cash Dividends Paid Direct"],
+        )
+    )
     interest_expense = abs(_latest_from_statement(income, ["Interest Expense", "Interest Expense Non Operating"]))
 
     eps = _info_number(info, "trailingEps", "forwardEps")
@@ -194,6 +244,7 @@ def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
         market_cap = current_price * shares if pd.notna(current_price) and pd.notna(shares) else np.nan
 
     book_value_per_share = _safe_divide(equity, shares)
+    tangible_book_value_per_share = _safe_divide(tangible_equity, shares)
     free_cash_flow = np.nan
     if pd.notna(operating_cash_flow):
         capex = 0.0 if pd.isna(capital_expenditure) else float(capital_expenditure)
@@ -206,6 +257,12 @@ def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
     price_to_book = _info_number(info, "priceToBook")
     if pd.isna(price_to_book):
         price_to_book = _safe_divide(current_price, book_value_per_share)
+
+    price_to_tangible_book = _safe_divide(current_price, tangible_book_value_per_share)
+
+    price_to_sales = _info_number(info, "priceToSalesTrailing12Months")
+    if pd.isna(price_to_sales):
+        price_to_sales = _safe_divide(market_cap, revenue)
 
     revenue_growth = _info_number(info, "revenueGrowth")
     if pd.isna(revenue_growth):
@@ -226,38 +283,206 @@ def build_fundamental_metrics(data: FundamentalData) -> pd.Series:
     if pd.isna(peg_ratio) and pd.notna(trailing_pe) and pd.notna(eps_growth) and eps_growth > 0:
         peg_ratio = trailing_pe / (eps_growth * 100)
 
+    enterprise_value = _info_number(info, "enterpriseValue")
+    if pd.isna(enterprise_value) and pd.notna(market_cap):
+        net_debt = total_debt - cash_and_short_term if pd.notna(cash_and_short_term) else total_debt
+        enterprise_value = market_cap + net_debt if pd.notna(net_debt) else np.nan
+
+    invested_capital = np.nan
+    if pd.notna(total_debt) or pd.notna(equity):
+        debt_value = 0.0 if pd.isna(total_debt) else float(total_debt)
+        equity_value = 0.0 if pd.isna(equity) else float(equity)
+        cash_value = 0.0 if pd.isna(cash_and_short_term) else float(cash_and_short_term)
+        invested_capital = debt_value + equity_value - cash_value
+    total_capital = (
+        (0.0 if pd.isna(total_debt) else float(total_debt))
+        + (0.0 if pd.isna(equity) else float(equity))
+        if pd.notna(total_debt) or pd.notna(equity)
+        else np.nan
+    )
+    net_debt = total_debt - cash_and_short_term if pd.notna(cash_and_short_term) else np.nan
+    tax_rate = _safe_divide(tax_expense, pretax_income)
+    tax_complement = 1.0 - tax_rate if pd.notna(tax_rate) else np.nan
+    nopat = operating_income * tax_complement if pd.notna(operating_income) and pd.notna(tax_complement) else np.nan
+    pretax_return_on_assets = _safe_divide(pretax_income, total_assets)
+    ebit_return_on_assets = _safe_divide(operating_income, total_assets)
+    equity_multiplier = _safe_divide(total_assets, equity)
+    earnings_retention = 1.0 - _info_number(info, "payoutRatio")
+    if pd.isna(earnings_retention) and pd.notna(dividends_paid) and pd.notna(net_income):
+        earnings_retention = 1.0 - _safe_divide(dividends_paid, net_income)
+    reinvestment_rate = (
+        _safe_divide(net_income - dividends_paid, equity)
+        if pd.notna(net_income) and pd.notna(dividends_paid)
+        else np.nan
+    )
+    cash_turnover = _safe_divide(revenue, cash_and_short_term)
+    receivables_turnover = _safe_divide(revenue, receivables)
+    inventory_turnover = _safe_divide(cost_of_revenue, inventory)
+    if pd.isna(inventory_turnover):
+        inventory_turnover = _safe_divide(revenue, inventory)
+    payables_turnover = _safe_divide(cost_of_revenue, payables)
+    if pd.isna(payables_turnover):
+        payables_turnover = _safe_divide(revenue, payables)
+    current_assets_turnover = _safe_divide(revenue, current_assets)
+    fixed_assets_turnover = _safe_divide(revenue, fixed_assets)
+    total_assets_turnover = _safe_divide(revenue, total_assets)
+    working_capital_turnover = _safe_divide(revenue, current_assets - current_liabilities)
+    days_inventory_on_hand = _safe_divide(365.0, inventory_turnover)
+    days_sales_outstanding = _safe_divide(365.0, receivables_turnover)
+    operating_cycle = (
+        days_inventory_on_hand + days_sales_outstanding
+        if pd.notna(days_inventory_on_hand) and pd.notna(days_sales_outstanding)
+        else np.nan
+    )
+    days_payables_outstanding = _safe_divide(365.0, payables_turnover)
+    net_operating_cycle = (
+        operating_cycle - days_payables_outstanding
+        if pd.notna(operating_cycle) and pd.notna(days_payables_outstanding)
+        else np.nan
+    )
+
     metrics = {
         "ticker": data.ticker,
         "current_price": current_price,
         "market_cap": market_cap,
+        "enterprise_value": enterprise_value,
         "shares_outstanding": shares,
         "eps": eps,
+        "eps_recurring": eps,
+        "eps_basic": _latest_from_statement(income, ["Basic EPS", "Basic Average Shares"]),
+        "eps_diluted": _latest_from_statement(income, ["Diluted EPS"]),
         "revenue": revenue,
+        "cost_of_revenue": cost_of_revenue,
+        "gross_profit": gross_profit,
         "net_income": net_income,
+        "operating_income": operating_income,
+        "pretax_income": pretax_income,
+        "ebitda": ebitda,
         "total_equity": equity,
+        "total_assets": total_assets,
+        "total_debt": total_debt,
+        "long_term_debt": long_term_debt,
+        "fixed_assets": fixed_assets,
+        "cash_and_short_term": cash_and_short_term,
+        "receivables": receivables,
+        "inventory": inventory,
+        "current_assets": current_assets,
+        "payables": payables,
+        "current_liabilities": current_liabilities,
         "free_cash_flow": free_cash_flow,
         "trailing_pe": trailing_pe,
         "forward_pe": _info_number(info, "forwardPE"),
+        "price_to_sales": price_to_sales,
         "price_to_book": price_to_book,
+        "price_to_tangible_book": price_to_tangible_book,
+        "price_to_cash_flow": _safe_divide(market_cap, operating_cash_flow),
+        "price_to_free_cash_flow": _safe_divide(market_cap, free_cash_flow),
         "peg_ratio": peg_ratio,
+        "enterprise_value_to_sales": _info_number(info, "enterpriseToRevenue"),
+        "enterprise_value_to_ebitda": _info_number(info, "enterpriseToEbitda"),
+        "enterprise_value_to_ebit": _safe_divide(enterprise_value, operating_income),
+        "gross_margin": _safe_divide(gross_profit, revenue),
+        "sga_to_sales": _safe_divide(_abs_or_nan(sga_expense), revenue),
+        "pretax_margin": _safe_divide(pretax_income, revenue),
         "roe": _safe_divide(net_income, equity),
+        "return_on_assets": _safe_divide(net_income, total_assets),
+        "return_on_common_equity": _safe_divide(net_income, equity),
+        "return_on_total_capital": _safe_divide(operating_income, total_capital),
+        "return_on_invested_capital": _safe_divide(nopat, invested_capital),
+        "cash_flow_return_on_invested_capital": _safe_divide(operating_cash_flow, invested_capital),
         "profit_margin": _info_number(info, "profitMargins"),
         "operating_margin": _safe_divide(operating_income, revenue),
         "free_cash_flow_margin": _safe_divide(free_cash_flow, revenue),
+        "free_cash_flow_conversion_ratio": _safe_divide(free_cash_flow, net_income),
+        "capex_to_sales": _safe_divide(_abs_or_nan(capital_expenditure), revenue),
+        "sales_per_share": _safe_divide(revenue, shares),
+        "operating_income_per_share": _safe_divide(operating_income, shares),
+        "dividends_per_share": _info_number(info, "dividendRate"),
+        "cash_flow_per_share": _safe_divide(operating_cash_flow, shares),
+        "free_cash_flow_per_share": _safe_divide(free_cash_flow, shares),
+        "book_value_per_share": book_value_per_share,
+        "tangible_book_value_per_share": tangible_book_value_per_share,
+        "diluted_shares_outstanding": shares,
+        "basic_shares_outstanding": shares,
+        "total_shares_outstanding": shares,
+        "cash_and_short_term_turnover": cash_turnover,
+        "receivables_turnover": receivables_turnover,
+        "current_assets_turnover": current_assets_turnover,
+        "fixed_assets_turnover": fixed_assets_turnover,
+        "total_assets_turnover": total_assets_turnover,
+        "asset_turnover_dupont": total_assets_turnover,
+        "pretax_return_on_assets": pretax_return_on_assets,
+        "tax_rate_complement": tax_complement,
+        "return_on_assets_dupont": _safe_divide(net_income, total_assets),
+        "equity_multiplier": equity_multiplier,
+        "return_on_equity_dupont": _safe_divide(net_income, equity),
+        "earnings_retention": earnings_retention,
+        "reinvestment_rate": reinvestment_rate,
+        "ebit_return_on_assets": ebit_return_on_assets,
+        "interest_as_percent_assets": _safe_divide(interest_expense, total_assets),
         "debt_to_equity": _safe_divide(total_debt, equity),
+        "long_term_debt_to_total_equity": _safe_divide(long_term_debt, equity),
+        "long_term_debt_to_total_capital": _safe_divide(long_term_debt, total_capital),
+        "long_term_debt_to_total_assets": _safe_divide(long_term_debt, total_assets),
+        "total_debt_to_total_assets": _safe_divide(total_debt, total_assets),
+        "total_debt_to_total_capital": _safe_divide(total_debt, total_capital),
+        "net_debt_to_total_equity": _safe_divide(net_debt, equity),
+        "net_debt_to_total_capital": _safe_divide(
+            net_debt,
+            total_capital,
+        ),
         "current_ratio": _safe_divide(current_assets, current_liabilities),
+        "quick_ratio": _safe_divide(
+            (0.0 if pd.isna(cash_and_short_term) else float(cash_and_short_term))
+            + (0.0 if pd.isna(receivables) else float(receivables)),
+            current_liabilities,
+        ),
+        "cash_ratio": _safe_divide(cash_and_short_term, current_liabilities),
+        "cash_and_short_term_to_current_assets": _safe_divide(cash_and_short_term, current_assets),
+        "cfo_to_current_liabilities": _safe_divide(operating_cash_flow, current_liabilities),
+        "inventory_turnover": inventory_turnover,
+        "payables_turnover": payables_turnover,
+        "asset_turnover": total_assets_turnover,
+        "working_capital_turnover": working_capital_turnover,
+        "days_inventory_on_hand": days_inventory_on_hand,
+        "days_sales_outstanding": days_sales_outstanding,
+        "operating_cycle": operating_cycle,
+        "days_payables_outstanding": days_payables_outstanding,
+        "net_operating_cycle": net_operating_cycle,
+        "net_debt_to_ebitda": _safe_divide(
+            net_debt,
+            ebitda,
+        ),
+        "net_debt_to_ebitda_minus_capex": _safe_divide(net_debt, ebitda + capital_expenditure),
+        "total_debt_to_ebitda": _safe_divide(total_debt, ebitda),
         "interest_coverage": _safe_divide(operating_income, interest_expense),
+        "ebitda_to_interest_expense": _safe_divide(ebitda, interest_expense),
+        "fixed_charge_coverage_ratio": _safe_divide(operating_income, interest_expense),
+        "cfo_to_interest_expense": _safe_divide(operating_cash_flow, interest_expense),
+        "cash_dividend_coverage_ratio": _safe_divide(operating_cash_flow, dividends_paid),
+        "long_term_debt_to_ebitda": _safe_divide(long_term_debt, ebitda),
+        "net_debt_to_ffo": _safe_divide(net_debt, operating_cash_flow),
+        "long_term_debt_to_ffo": _safe_divide(long_term_debt, operating_cash_flow),
+        "cfo_to_total_debt": _safe_divide(operating_cash_flow, total_debt),
+        "ebitda_minus_capex_to_interest_expense": _safe_divide(ebitda + capital_expenditure, interest_expense),
         "revenue_growth": revenue_growth,
         "earnings_growth": earnings_growth,
         "eps_growth": eps_growth,
         "dividend_yield": _info_number(info, "dividendYield"),
+        "dividend_payout_ratio": _info_number(info, "payoutRatio"),
         "beta": _info_number(info, "beta"),
         "sector": info.get("sector"),
         "industry": info.get("industry"),
     }
 
+    if pd.isna(metrics["enterprise_value_to_sales"]):
+        metrics["enterprise_value_to_sales"] = _safe_divide(enterprise_value, revenue)
+    if pd.isna(metrics["enterprise_value_to_ebitda"]):
+        metrics["enterprise_value_to_ebitda"] = _safe_divide(enterprise_value, ebitda)
     if pd.isna(metrics["profit_margin"]):
         metrics["profit_margin"] = _safe_divide(net_income, revenue)
+    if pd.isna(metrics["dividend_payout_ratio"]):
+        metrics["dividend_payout_ratio"] = _safe_divide(dividends_paid, net_income)
 
     return pd.Series(metrics)
 
@@ -298,6 +523,19 @@ def build_fundamental_metric_history(
 
     for period in periods:
         revenue = _value_at_period(income, ["Total Revenue", "Operating Revenue"], period)
+        cost_of_revenue = abs(
+            _value_at_period(income, ["Cost Of Revenue", "Cost Of Goods Sold", "Cost of Revenue"], period)
+        )
+        gross_profit = _value_at_period(income, ["Gross Profit"], period)
+        sga_expense = _value_at_period(
+            income,
+            [
+                "Selling General And Administration",
+                "Selling General Administrative",
+                "Selling General And Administrative",
+            ],
+            period,
+        )
         net_income = _value_at_period(
             income,
             [
@@ -308,6 +546,9 @@ def build_fundamental_metric_history(
             period,
         )
         operating_income = _value_at_period(income, ["Operating Income", "EBIT"], period)
+        pretax_income = _value_at_period(income, ["Pretax Income", "Income Before Tax"], period)
+        tax_expense = abs(_value_at_period(income, ["Tax Provision", "Income Tax Expense"], period))
+        ebitda = _value_at_period(income, ["EBITDA", "Normalized EBITDA"], period)
         eps = _value_at_period(income, ["Diluted EPS", "Basic EPS"], period)
         equity = _value_at_period(
             balance,
@@ -315,6 +556,42 @@ def build_fundamental_metric_history(
             period,
         )
         total_debt = _value_at_period(balance, ["Total Debt", "Long Term Debt"], period)
+        long_term_debt = _value_at_period(
+            balance,
+            ["Long Term Debt", "Long Term Debt And Capital Lease Obligation"],
+            period,
+        )
+        total_assets = _value_at_period(balance, ["Total Assets"], period)
+        fixed_assets = _value_at_period(
+            balance,
+            ["Net PPE", "Property Plant Equipment", "Gross PPE", "Net Property Plant And Equipment"],
+            period,
+        )
+        tangible_equity = _value_at_period(
+            balance,
+            ["Tangible Book Value", "Net Tangible Assets", "Tangible Common Equity"],
+            period,
+        )
+        cash_and_short_term = _value_at_period(
+            balance,
+            [
+                "Cash Cash Equivalents And Short Term Investments",
+                "Cash And Cash Equivalents",
+                "Cash And Short Term Investments",
+            ],
+            period,
+        )
+        receivables = _value_at_period(
+            balance,
+            ["Accounts Receivable", "Net Receivables", "Receivables"],
+            period,
+        )
+        inventory = _value_at_period(balance, ["Inventory"], period)
+        payables = _value_at_period(
+            balance,
+            ["Accounts Payable", "Payables", "Payables And Accrued Expenses"],
+            period,
+        )
         current_assets = _value_at_period(balance, ["Current Assets", "Total Current Assets"], period)
         current_liabilities = _value_at_period(
             balance,
@@ -345,6 +622,13 @@ def build_fundamental_metric_history(
             ["Capital Expenditure", "Capital Expenditures"],
             period,
         )
+        dividends_paid = abs(
+            _value_at_period(
+                cash,
+                ["Cash Dividends Paid", "Common Stock Dividend Paid", "Cash Dividends Paid Direct"],
+                period,
+            )
+        )
         capex = 0.0 if pd.isna(capital_expenditure) else float(capital_expenditure)
         free_cash_flow = (
             float(operating_cash_flow) + capex
@@ -353,6 +637,71 @@ def build_fundamental_metric_history(
         )
         price = _price_at_period(data.prices, period)
         book_value_per_share = _safe_divide(equity, shares)
+        tangible_book_value_per_share = _safe_divide(tangible_equity, shares)
+        interest_expense = abs(
+            _value_at_period(
+                income,
+                ["Interest Expense", "Interest Expense Non Operating"],
+                period,
+            )
+        )
+        market_cap = price * shares if pd.notna(price) and pd.notna(shares) else np.nan
+        net_debt = total_debt - cash_and_short_term if pd.notna(cash_and_short_term) else np.nan
+        enterprise_value = market_cap + net_debt if pd.notna(market_cap) and pd.notna(net_debt) else np.nan
+        total_capital = (
+            (0.0 if pd.isna(total_debt) else float(total_debt))
+            + (0.0 if pd.isna(equity) else float(equity))
+            if pd.notna(total_debt) or pd.notna(equity)
+            else np.nan
+        )
+        invested_capital = np.nan
+        if pd.notna(total_debt) or pd.notna(equity):
+            invested_capital = (
+                (0.0 if pd.isna(total_debt) else float(total_debt))
+                + (0.0 if pd.isna(equity) else float(equity))
+                - (0.0 if pd.isna(cash_and_short_term) else float(cash_and_short_term))
+            )
+        tax_rate = _safe_divide(tax_expense, pretax_income)
+        tax_complement = 1.0 - tax_rate if pd.notna(tax_rate) else np.nan
+        nopat = operating_income * tax_complement if pd.notna(operating_income) and pd.notna(tax_complement) else np.nan
+        pretax_return_on_assets = _safe_divide(pretax_income, total_assets)
+        ebit_return_on_assets = _safe_divide(operating_income, total_assets)
+        equity_multiplier = _safe_divide(total_assets, equity)
+        earnings_retention = (
+            1.0 - _safe_divide(dividends_paid, net_income)
+            if pd.notna(dividends_paid) and pd.notna(net_income)
+            else np.nan
+        )
+        reinvestment_rate = (
+            _safe_divide(net_income - dividends_paid, equity)
+            if pd.notna(net_income) and pd.notna(dividends_paid)
+            else np.nan
+        )
+        cash_turnover = _safe_divide(revenue, cash_and_short_term)
+        receivables_turnover = _safe_divide(revenue, receivables)
+        inventory_turnover = _safe_divide(cost_of_revenue, inventory)
+        if pd.isna(inventory_turnover):
+            inventory_turnover = _safe_divide(revenue, inventory)
+        payables_turnover = _safe_divide(cost_of_revenue, payables)
+        if pd.isna(payables_turnover):
+            payables_turnover = _safe_divide(revenue, payables)
+        current_assets_turnover = _safe_divide(revenue, current_assets)
+        fixed_assets_turnover = _safe_divide(revenue, fixed_assets)
+        total_assets_turnover = _safe_divide(revenue, total_assets)
+        working_capital_turnover = _safe_divide(revenue, current_assets - current_liabilities)
+        days_inventory_on_hand = _safe_divide(365.0, inventory_turnover)
+        days_sales_outstanding = _safe_divide(365.0, receivables_turnover)
+        operating_cycle = (
+            days_inventory_on_hand + days_sales_outstanding
+            if pd.notna(days_inventory_on_hand) and pd.notna(days_sales_outstanding)
+            else np.nan
+        )
+        days_payables_outstanding = _safe_divide(365.0, payables_turnover)
+        net_operating_cycle = (
+            operating_cycle - days_payables_outstanding
+            if pd.notna(operating_cycle) and pd.notna(days_payables_outstanding)
+            else np.nan
+        )
 
         rows.append(
             {
@@ -360,21 +709,121 @@ def build_fundamental_metric_history(
                 "frequency": frequency,
                 "period": pd.Timestamp(period),
                 "current_price": price,
+                "market_cap": market_cap,
+                "enterprise_value": enterprise_value,
                 "shares_outstanding": shares,
                 "eps": eps,
+                "eps_recurring": eps,
+                "eps_basic": _value_at_period(income, ["Basic EPS"], period),
+                "eps_diluted": _value_at_period(income, ["Diluted EPS"], period),
                 "revenue": revenue,
+                "cost_of_revenue": cost_of_revenue,
+                "gross_profit": gross_profit,
                 "net_income": net_income,
                 "operating_income": operating_income,
+                "pretax_income": pretax_income,
+                "ebitda": ebitda,
                 "total_equity": equity,
+                "total_assets": total_assets,
+                "total_debt": total_debt,
+                "long_term_debt": long_term_debt,
+                "fixed_assets": fixed_assets,
+                "cash_and_short_term": cash_and_short_term,
+                "receivables": receivables,
+                "inventory": inventory,
+                "current_assets": current_assets,
+                "payables": payables,
+                "current_liabilities": current_liabilities,
                 "free_cash_flow": free_cash_flow,
+                "price_to_sales": _safe_divide(market_cap, revenue),
                 "trailing_pe": _safe_divide(price, eps),
                 "price_to_book": _safe_divide(price, book_value_per_share),
+                "price_to_tangible_book": _safe_divide(price, tangible_book_value_per_share),
+                "price_to_cash_flow": _safe_divide(market_cap, operating_cash_flow),
+                "price_to_free_cash_flow": _safe_divide(market_cap, free_cash_flow),
+                "dividend_yield": _safe_divide(_safe_divide(dividends_paid, shares), price),
+                "enterprise_value_to_sales": _safe_divide(enterprise_value, revenue),
+                "enterprise_value_to_ebit": _safe_divide(enterprise_value, operating_income),
+                "enterprise_value_to_ebitda": _safe_divide(enterprise_value, ebitda),
+                "gross_margin": _safe_divide(gross_profit, revenue),
+                "sga_to_sales": _safe_divide(_abs_or_nan(sga_expense), revenue),
                 "roe": _safe_divide(net_income, equity),
+                "return_on_common_equity": _safe_divide(net_income, equity),
+                "return_on_assets": _safe_divide(net_income, total_assets),
+                "return_on_total_capital": _safe_divide(operating_income, total_capital),
+                "return_on_invested_capital": _safe_divide(nopat, invested_capital),
+                "cash_flow_return_on_invested_capital": _safe_divide(operating_cash_flow, invested_capital),
                 "profit_margin": _safe_divide(net_income, revenue),
+                "pretax_margin": _safe_divide(pretax_income, revenue),
                 "operating_margin": _safe_divide(operating_income, revenue),
                 "free_cash_flow_margin": _safe_divide(free_cash_flow, revenue),
+                "free_cash_flow_conversion_ratio": _safe_divide(free_cash_flow, net_income),
+                "capex_to_sales": _safe_divide(_abs_or_nan(capital_expenditure), revenue),
+                "sales_per_share": _safe_divide(revenue, shares),
+                "operating_income_per_share": _safe_divide(operating_income, shares),
+                "dividends_per_share": _safe_divide(dividends_paid, shares),
+                "dividend_payout_ratio": _safe_divide(dividends_paid, net_income),
+                "cash_flow_per_share": _safe_divide(operating_cash_flow, shares),
+                "free_cash_flow_per_share": _safe_divide(free_cash_flow, shares),
+                "book_value_per_share": book_value_per_share,
+                "tangible_book_value_per_share": tangible_book_value_per_share,
+                "diluted_shares_outstanding": shares,
+                "basic_shares_outstanding": shares,
+                "total_shares_outstanding": shares,
+                "cash_and_short_term_turnover": cash_turnover,
+                "receivables_turnover": receivables_turnover,
+                "current_assets_turnover": current_assets_turnover,
+                "fixed_assets_turnover": fixed_assets_turnover,
+                "total_assets_turnover": total_assets_turnover,
+                "asset_turnover_dupont": total_assets_turnover,
+                "pretax_return_on_assets": pretax_return_on_assets,
+                "tax_rate_complement": tax_complement,
+                "return_on_assets_dupont": _safe_divide(net_income, total_assets),
+                "equity_multiplier": equity_multiplier,
+                "return_on_equity_dupont": _safe_divide(net_income, equity),
+                "earnings_retention": earnings_retention,
+                "reinvestment_rate": reinvestment_rate,
+                "ebit_return_on_assets": ebit_return_on_assets,
+                "interest_as_percent_assets": _safe_divide(interest_expense, total_assets),
                 "debt_to_equity": _safe_divide(total_debt, equity),
+                "long_term_debt_to_total_equity": _safe_divide(long_term_debt, equity),
+                "long_term_debt_to_total_capital": _safe_divide(long_term_debt, total_capital),
+                "long_term_debt_to_total_assets": _safe_divide(long_term_debt, total_assets),
+                "total_debt_to_total_assets": _safe_divide(total_debt, total_assets),
+                "total_debt_to_total_capital": _safe_divide(total_debt, total_capital),
+                "net_debt_to_total_equity": _safe_divide(net_debt, equity),
+                "net_debt_to_total_capital": _safe_divide(net_debt, total_capital),
                 "current_ratio": _safe_divide(current_assets, current_liabilities),
+                "quick_ratio": _safe_divide(
+                    (0.0 if pd.isna(cash_and_short_term) else float(cash_and_short_term))
+                    + (0.0 if pd.isna(receivables) else float(receivables)),
+                    current_liabilities,
+                ),
+                "cash_ratio": _safe_divide(cash_and_short_term, current_liabilities),
+                "cash_and_short_term_to_current_assets": _safe_divide(cash_and_short_term, current_assets),
+                "cfo_to_current_liabilities": _safe_divide(operating_cash_flow, current_liabilities),
+                "inventory_turnover": inventory_turnover,
+                "payables_turnover": payables_turnover,
+                "asset_turnover": total_assets_turnover,
+                "working_capital_turnover": working_capital_turnover,
+                "days_inventory_on_hand": days_inventory_on_hand,
+                "days_sales_outstanding": days_sales_outstanding,
+                "operating_cycle": operating_cycle,
+                "days_payables_outstanding": days_payables_outstanding,
+                "net_operating_cycle": net_operating_cycle,
+                "net_debt_to_ebitda": _safe_divide(net_debt, ebitda),
+                "net_debt_to_ebitda_minus_capex": _safe_divide(net_debt, ebitda + capital_expenditure),
+                "total_debt_to_ebitda": _safe_divide(total_debt, ebitda),
+                "interest_coverage": _safe_divide(operating_income, interest_expense),
+                "ebitda_to_interest_expense": _safe_divide(ebitda, interest_expense),
+                "fixed_charge_coverage_ratio": _safe_divide(operating_income, interest_expense),
+                "cfo_to_interest_expense": _safe_divide(operating_cash_flow, interest_expense),
+                "cash_dividend_coverage_ratio": _safe_divide(operating_cash_flow, dividends_paid),
+                "long_term_debt_to_ebitda": _safe_divide(long_term_debt, ebitda),
+                "net_debt_to_ffo": _safe_divide(net_debt, operating_cash_flow),
+                "long_term_debt_to_ffo": _safe_divide(long_term_debt, operating_cash_flow),
+                "cfo_to_total_debt": _safe_divide(operating_cash_flow, total_debt),
+                "ebitda_minus_capex_to_interest_expense": _safe_divide(ebitda + capital_expenditure, interest_expense),
             }
         )
 
