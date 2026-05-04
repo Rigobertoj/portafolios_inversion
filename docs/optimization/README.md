@@ -38,6 +38,24 @@ src/optimization/
   retornos de la API pública.
 - [workflows.md](workflows.md): ejemplos prácticos de implementación en flujos
   de investigación, construcción de portafolio y backtesting.
+- [diagrams/README.md](diagrams/README.md): esquemas visuales del módulo con
+  vistas de arquitectura, clases/componentes y flujo orgánico de uso.
+
+## Diagramas
+
+La carpeta [diagrams](diagrams/README.md) contiene el paquete visual del módulo
+siguiendo la estructura de `diagram-architect`:
+
+- [optimization_module_architecture.drawio](diagrams/optimization_module_architecture.drawio):
+  vista universo de entradas, rutas de API, objetivos, solver, resultados y
+  handoff downstream.
+- [optimization_class_architecture.drawio](diagrams/optimization_class_architecture.drawio):
+  vista de clases, funciones, estado, contratos de configuración y resultados.
+- [optimization_workflow.drawio](diagrams/optimization_workflow.drawio): flujo
+  operativo desde mandato y datos preparados hasta pesos optimizados y feedback.
+
+También hay enlaces editables directos en
+[open_in_diagrams_net.md](diagrams/open_in_diagrams_net.md).
 
 ## Flujo Orgánico
 
