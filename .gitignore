@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 *.html
+docs/**/api_reference_files/
+.codex
 
 # Distribution / packaging
 .Python
