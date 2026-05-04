@@ -14,6 +14,7 @@ import pandas as pd
 from .benchmark_analysis import PortfolioBenchmarkAnalysis
 from .metrics_basic import PortfolioBasicMetrics
 from .metrics_downside import PortfolioDownsideMetrics
+from .performance_metrics import PerformanceMetricsCalculator
 from .portfolio import Portfolio
 
 
@@ -188,45 +189,19 @@ class PortfolioPerformanceAnalysis:
             One-column metrics table with portfolio performance and optional
             benchmark-relative measures.
         """
-        metrics = {
-            "Rendimiento esperado": self.expected_return(),
-            "Rendimiento realizado": self.realized_return(),
-            "Volatilidad": self.volatility(),
-            "Ratio de sharpe": self.sharpe_ratio(risk_free_rate=risk_free_rate),
-            "Downside risk": self.downside_risk(
-                threshold=threshold,
-                benchmark_returns=benchmark_returns,
-            ),
-            "Upside risk": self.upside_risk(
-                threshold=threshold,
-                benchmark_returns=benchmark_returns,
-            ),
-            "Omega": self.omega_ratio(
-                threshold=threshold,
-                benchmark_returns=benchmark_returns,
-            ),
-            "Beta": float("nan"),
-            "Alpha de Jensen": float("nan"),
-            "Ratio de Treynor": float("nan"),
-            "Ratio de Sortino": self.sortino_ratio(
-                risk_free_rate=risk_free_rate,
-                threshold=threshold,
-                benchmark_returns=benchmark_returns,
-            ),
-        }
-
-        if self._benchmark_analysis.resolved_benchmark_returns() is not None:
-            metrics["Beta"] = self.beta()
-            metrics["Alpha de Jensen"] = self.jensen_alpha(
-                risk_free_rate=risk_free_rate,
-            )
-            metrics["Ratio de Treynor"] = self.treynor_ratio(
-                risk_free_rate=risk_free_rate,
-            )
-
-        return pd.DataFrame(
-            {"value": pd.Series(metrics, dtype=float)}
+        calculator = PerformanceMetricsCalculator(
+            returns=self.portfolio.portfolio_returns(),
+            evolution=self.portfolio.wealth_index(initial_value=1.0),
+            initial_value=1.0,
+            benchmark_returns=self._benchmark_analysis.resolved_benchmark_returns(),
+            downside_benchmark_returns=benchmark_returns,
+            risk_free_rate=risk_free_rate,
+            threshold=threshold,
+            trading_days=self.trading_days,
+            use_evolution_returns=True,
         )
+        table = calculator.metrics_table()
+        return pd.DataFrame({"value": table.iloc[:, 0].astype(float)})
 
     def summary(
         self,

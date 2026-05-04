@@ -1,5 +1,7 @@
 """Public portfolio API built around the new portfolio package layout."""
 
+from __future__ import annotations
+
 from importlib import import_module
 from typing import TYPE_CHECKING
 
@@ -13,6 +15,7 @@ from .metrics_downside import (
     PortfolioDownsideMetrics,
 )
 from .performance_analysis import PortfolioPerformanceAnalysis
+from .performance_metrics import PerformanceMetricsCalculator
 from .portfolio import Portfolio
 
 if TYPE_CHECKING:
@@ -37,6 +40,7 @@ __all__ = [
     "PortfolioElementaryMetrics",
     "PortfolioPerformanceAnalysis",
     "PortfolioPostModernMetrics",
+    "PerformanceMetricsCalculator",
 ]
 
 
