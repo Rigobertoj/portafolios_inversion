@@ -1,0 +1,87 @@
+<mxfile host="app.diagrams.net" modified="2026-05-03T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="selection-module-architecture-linear" name="Selection Module Architecture Linear">
+    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2100" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="selection: arquitectura lineal del modulo" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=24;fontStyle=1;fontColor=#1B1F23;" vertex="1" parent="1">
+          <mxGeometry x="330" y="20" width="1440" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="pm-flow" value="Flujo mayor: selection -&gt; optimization -&gt; portfolio construction -&gt; execution/backtesting -&gt; performance analysis -&gt; risk/reporting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;arcSize=8;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="76" width="1580" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="mandate" value="0. Mandato y universo&#10;&#10;Input operativo:&#10;- tickers candidatos&#10;- horizonte y fechas&#10;- tesis: value, growth o diversificacion&#10;- restricciones previas de liquidez/sector&#10;&#10;Concepto:&#10;selection no asigna capital; reduce el universo con evidencia trazable." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#999999;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="240" width="260" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="source" value="1. Fuente externa&#10;yfinance / Yahoo Finance&#10;&#10;Datos usados:&#10;- profile info&#10;- estados financieros&#10;- balance sheet&#10;- cash flow&#10;- precios historicos&#10;&#10;Riesgo conceptual:&#10;los nombres y cobertura pueden variar entre emisoras." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="390" y="240" width="260" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="branch" value="2. Bifurcacion&#10;&#10;Que pregunta domina la primera criba?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="730" y="265" width="180" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="fundamentals" value="3A. fundamentals.py&#10;Acceso y normalizacion&#10;&#10;Clase principal:&#10;YahooFundamentalsProvider&#10;&#10;Produce:&#10;FundamentalData por ticker&#10;&#10;Operativo:&#10;normaliza tickers, cachea descargas y arma un contrato estable para los calculos posteriores." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="130" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="metrics" value="4A. fundamental_metrics.py&#10;Transformacion contable&#10;&#10;Funciones puras:&#10;build_fundamental_metrics&#10;build_metrics_frame&#10;build_fundamental_metric_history&#10;build_metric_history_frame&#10;&#10;Concepto/calculo:&#10;convierte estados financieros en ratios comparables: PE, PB, ROE, margenes, FCF, deuda, liquidez, crecimiento e historiales punto-en-tiempo." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="130" width="300" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="scorers" value="5A. fundamental_scorers.py&#10;Reglas de tesis&#10;&#10;Configs:&#10;ValueScoreConfig&#10;GrowthScoreConfig&#10;&#10;Calculo:&#10;percentiles cross-sectional por metrica, ajuste por higher/lower-is-better, ponderacion y score 0-100." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1710" y="130" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="fund-selector" value="6A. fundamental_selector.py&#10;Orquestacion fundamental&#10;&#10;FundamentalSelector ejecuta:&#10;collect_metrics -&gt; rank -&gt; select_top -&gt; selection_report&#10;rank_over_time -&gt; metric_evolution&#10;&#10;Salida:&#10;ranking, selected_tickers, metric_history y reporte explicable." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1710" y="430" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="correlation" value="3B. correlation_selector.py&#10;Ruta de diversificacion&#10;&#10;CorrelationPortfolioSelector ejecuta:&#10;_download_prices -&gt; coverage filter -&gt; returns -&gt; corr matrix -&gt; corr_score&#10;&#10;Concepto/calculo:&#10;menor correlacion media implica menor redundancia estadistica entre candidatos." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="550" width="330" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="corr-portfolio" value="4B. Seleccion multi-grupo&#10;&#10;Metodos:&#10;rank_within_groups&#10;build_multigroup_portfolio&#10;update_portfolio&#10;run_pipeline&#10;&#10;Salida:&#10;group_ranking, final_tickers, matrices de correlacion y media off-diagonal." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="550" width="330" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="contract" value="7. Contrato hacia optimization&#10;&#10;Entregable comun:&#10;lista corta de tickers + evidencia&#10;&#10;Fundamental:&#10;selected_tickers, metric_snapshot, score_components&#10;&#10;Correlacion:&#10;final_tickers, candidate_corr_matrix, final_mean_offdiag_corr&#10;&#10;Siguiente modulo decide pesos, constraints, objetivo y solver." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8CECC;strokeColor=#B85450;fontSize=12;fontStyle=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="900" y="900" width="600" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="concept-note" value="Lectura del diagrama&#10;&#10;Izquierda -&gt; derecha: del mandato al contrato operativo.&#10;Arriba: pregunta economico-fundamental.&#10;Abajo: pregunta estadistica de diversificacion.&#10;La convergencia final evita confundir seleccionar activos con optimizar pesos." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;fontSize=12;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="90" y="900" width="560" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="universo + fechas" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#5B7DB1;" edge="1" parent="1" source="mandate" target="source">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="datos disponibles" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#8A6D3B;" edge="1" parent="1" source="source" target="branch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="tesis value/growth" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#4D7F3A;" edge="1" parent="1" source="branch" target="fundamentals">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="FundamentalData" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#4D7F3A;" edge="1" parent="1" source="fundamentals" target="metrics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="metricas comparables" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#4D7F3A;" edge="1" parent="1" source="metrics" target="scorers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="score config" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#6C8EBF;" edge="1" parent="1" source="scorers" target="fund-selector">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="selected_tickers + reporte" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#B85450;" edge="1" parent="1" source="fund-selector" target="contract">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1860" y="800" />
+              <mxPoint x="1200" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e8" value="diversificacion" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#7E5A8F;" edge="1" parent="1" source="branch" target="correlation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="ranking por grupo" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#7E5A8F;" edge="1" parent="1" source="correlation" target="corr-portfolio">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" value="final_tickers + matrices" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=11;strokeColor=#B85450;" edge="1" parent="1" source="corr-portfolio" target="contract">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" value="contexto" style="endArrow=block;html=1;rounded=0;dashed=1;strokeWidth=2;fontSize=11;strokeColor=#666666;" edge="1" parent="1" source="pm-flow" target="mandate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
