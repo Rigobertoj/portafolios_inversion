@@ -6,8 +6,23 @@ __pycache__/
 # C extensions
 *.so
 *.html
+*_files/
 docs/**/api_reference_files/
 .codex
+
+# Research/audit outputs
+research/data/research_runs/
+course_notes/project/research/data/research_runs/
+
+# Generated security-selection memo outputs
+reports/security_selection/*.aux
+reports/security_selection/*.docx
+reports/security_selection/*.log
+reports/security_selection/*.md
+reports/security_selection/*.out
+reports/security_selection/*.pdf
+reports/security_selection/*.tex
+reports/security_selection/*.toc
 
 # Distribution / packaging
 .Python
