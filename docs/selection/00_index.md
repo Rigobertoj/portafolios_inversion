@@ -24,6 +24,7 @@
 | 08 | `08_api_reference.md` | API narrativa | Para consultar clases, métodos y atributos. |
 | 09 | `09_validation_and_edge_cases.md` | Validación | Para pruebas, errores y límites. |
 | 10 | `10_glossary.md` | Glosario | Para unificar vocabulario. |
+| 11 | `11_learned_fundamental_scoring.md` | Scoring aprendido | Para research con XGBoost y pesos aprendidos. |
 
 ## Propósito
 
@@ -54,6 +55,7 @@ La ruta base es:
   -> 08_api_reference
   -> 09_validation_and_edge_cases
   -> 10_glossary
+  -> 11_learned_fundamental_scoring
 ```
 
 Si el lector solo quiere ejecutar código, puede saltar de `01` a `07`. Si quiere
@@ -87,6 +89,7 @@ clara.
 | Ejecutar un caso real | `07_workflows.md` |
 | Consultar métodos y atributos | `08_api_reference.md` |
 | Revisar límites, errores y pruebas | `09_validation_and_edge_cases.md` |
+| Aprender pesos con XGBoost | `11_learned_fundamental_scoring.md` |
 
 ## Estado Del Piloto
 

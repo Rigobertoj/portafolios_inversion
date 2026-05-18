@@ -49,13 +49,20 @@ from src.selection import (
     CorrelationPortfolioSelector,
     CorrelationSelector,
     FundamentalData,
+    FundamentalLearningPanelBuilder,
     FundamentalScoreConfig,
     FundamentalSelector,
     GrowthScoreConfig,
+    LearnedFundamentalSelector,
+    LearnedScoreConfigFactory,
     ValueScoreConfig,
+    XGBoostFundamentalModel,
     YahooFundamentalsProvider,
+    build_forward_return_targets,
+    build_fundamental_learning_panel,
     build_fundamental_metric_history,
     build_metric_history_frame,
+    candidate_feature_columns,
     score_fundamentals_over_time,
 )
 
@@ -63,23 +70,36 @@ from src.selection import (
 def test_public_packages_expose_expected_symbols():
     assert set(research_package.__all__) == {"ARIMAResearch", "AssetsResearch"}
     assert set(selection_package.__all__) == {
+        "ARIMAResearch",
+        "AssetsResearch",
         "CorrelationPortfolioSelector",
         "CorrelationSelector",
         "FundamentalData",
+        "FundamentalLearningPanelBuilder",
         "FundamentalScoreConfig",
         "FundamentalSelector",
         "FUNDAMENTAL_METRIC_SIGNAL_SPECS",
         "GrowthScoreConfig",
+        "LearnedFundamentalSelector",
+        "LearnedScoreConfigFactory",
         "MetricSignalSpec",
         "ValueScoreConfig",
+        "XGBoostFundamentalModel",
         "YahooFundamentalsProvider",
+        "add_signal_features",
+        "build_forward_return_targets",
+        "build_fundamental_learning_panel",
         "build_fundamental_metric_history",
         "build_fundamental_metrics",
         "build_metric_history_frame",
         "build_metrics_frame",
+        "candidate_feature_columns",
+        "dividends_between",
         "fundamental_metric_signal_specs",
+        "price_at_or_after",
         "score_fundamentals",
         "score_fundamentals_over_time",
+        "target_column_names",
     }
     assert {
         "Portfolio",
@@ -127,22 +147,33 @@ def test_research_and_selection_public_api_is_available():
     assert CorrelationSelector is not None
     assert FundamentalSelector is not None
     assert FundamentalData is not None
+    assert FundamentalLearningPanelBuilder is not None
     assert FundamentalScoreConfig is not None
     assert GrowthScoreConfig is not None
+    assert LearnedFundamentalSelector is not None
+    assert LearnedScoreConfigFactory is not None
     assert ValueScoreConfig is not None
+    assert XGBoostFundamentalModel is not None
     assert YahooFundamentalsProvider is not None
+    assert build_forward_return_targets is not None
+    assert build_fundamental_learning_panel is not None
     assert build_fundamental_metric_history is not None
     assert build_metric_history_frame is not None
+    assert candidate_feature_columns is not None
     assert score_fundamentals_over_time is not None
-    assert ARIMAResearch.__module__ == "src.research.arima_research"
-    assert AssetsResearch.__module__ == "src.research.assets_research"
+    assert ARIMAResearch.__module__ == "src.selection.arima_research"
+    assert AssetsResearch.__module__ == "src.selection.assets_research"
     assert CorrelationPortfolioSelector.__module__ == "src.selection.correlation_selector"
     assert CorrelationSelector.__module__ == "src.selection.correlation_selector"
     assert FundamentalSelector.__module__ == "src.selection.fundamental_selector"
     assert FundamentalData.__module__ == "src.selection.fundamentals"
+    assert FundamentalLearningPanelBuilder.__module__ == "src.selection.fundamental_panel"
     assert FundamentalScoreConfig.__module__ == "src.selection.fundamental_scorers"
     assert GrowthScoreConfig.__module__ == "src.selection.fundamental_scorers"
+    assert LearnedFundamentalSelector.__module__ == "src.selection.learned_fundamental_selector"
+    assert LearnedScoreConfigFactory.__module__ == "src.selection.learned_fundamental_scorers"
     assert ValueScoreConfig.__module__ == "src.selection.fundamental_scorers"
+    assert XGBoostFundamentalModel.__module__ == "src.selection.xgboost_fundamental_model"
     assert YahooFundamentalsProvider.__module__ == "src.selection.fundamentals"
 
 

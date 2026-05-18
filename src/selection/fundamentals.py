@@ -7,12 +7,13 @@ selectors.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, Optional, Tuple
 
 import pandas as pd
+import numpy as np
 
-from ..research.assets_research import yf
+from .assets_research import yf
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,9 @@ class FundamentalData:
         Quarterly financial statements.
     prices : pandas.Series
         Price series used for point-in-time ratio calculations.
+    dividends : pandas.Series, default empty
+        Dividend cash-flow series used to build forward shareholder-return
+        targets. Empty when the provider does not expose dividend history.
     """
 
     ticker: str
@@ -43,6 +47,9 @@ class FundamentalData:
     quarterly_balance_sheet: pd.DataFrame
     quarterly_cash_flow: pd.DataFrame
     prices: pd.Series
+    dividends: pd.Series = field(
+        default_factory=lambda: pd.Series(dtype=float, name="Dividends")
+    )
 
 
 class YahooFundamentalsProvider:
@@ -90,16 +97,29 @@ class YahooFundamentalsProvider:
                 return value.copy()
         return pd.DataFrame()
 
-    def _fetch_prices(self, ticker_obj: object) -> pd.Series:
+    def _fetch_market_history(self, ticker_obj: object) -> tuple[pd.Series, pd.Series]:
         history = ticker_obj.history(start=self.start, end=self.end)
         if not isinstance(history, pd.DataFrame) or history.empty:
-            return pd.Series(dtype=float, name=self.price_field)
+            return (
+                pd.Series(dtype=float, name=self.price_field),
+                pd.Series(dtype=float, name="Dividends"),
+            )
         if self.price_field not in history.columns:
             raise ValueError(
                 f"price_field '{self.price_field}' not found in Yahoo history data."
             )
         prices = pd.to_numeric(history[self.price_field], errors="coerce").dropna()
         prices.name = self.price_field
+        if "Dividends" in history.columns:
+            dividends = pd.to_numeric(history["Dividends"], errors="coerce").dropna()
+            dividends = dividends[~np.isclose(dividends, 0.0)]
+        else:
+            dividends = pd.Series(dtype=float, name="Dividends")
+        dividends.name = "Dividends"
+        return prices, dividends
+
+    def _fetch_prices(self, ticker_obj: object) -> pd.Series:
+        prices, _ = self._fetch_market_history(ticker_obj)
         return prices
 
     def clear_cache(self) -> None:
@@ -145,6 +165,8 @@ class YahooFundamentalsProvider:
         if not isinstance(info, dict):
             info = dict(info)
 
+        prices, dividends = self._fetch_market_history(ticker_obj)
+
         record = FundamentalData(
             ticker=ticker_clean,
             info=info,
@@ -166,7 +188,8 @@ class YahooFundamentalsProvider:
                 "quarterly_cash_flow",
                 "quarterly_cashflow",
             ),
-            prices=self._fetch_prices(ticker_obj),
+            prices=prices,
+            dividends=dividends,
         )
         self._data_cache[cache_key] = record
         return record

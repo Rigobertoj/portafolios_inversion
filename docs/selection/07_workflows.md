@@ -9,7 +9,8 @@
 5. Flujo De Scoring Temporal
 6. Flujo De Correlación Por Grupos
 7. Flujo De Actualización De Portafolio
-8. Relación Con La Guía Heredada
+8. Flujo Fundamental Aprendido
+9. Relación Con La Guía Heredada
 
 ## Mapa De La Serie
 
@@ -26,6 +27,7 @@
 | 08 | `08_api_reference.md` | API narrativa | Para consultar clases, métodos y atributos. |
 | 09 | `09_validation_and_edge_cases.md` | Validación | Para pruebas, errores y límites. |
 | 10 | `10_glossary.md` | Glosario | Para unificar vocabulario. |
+| 11 | `11_learned_fundamental_scoring.md` | Scoring aprendido | Para research con XGBoost y pesos aprendidos. |
 
 ## Propósito
 
@@ -128,9 +130,40 @@ update["updated_tickers"]
 Este flujo sugiere nuevos tickers con menor correlación promedio frente al
 portafolio actual.
 
+## Flujo Fundamental Aprendido
+
+```python
+from src.selection import (
+    FundamentalLearningPanelBuilder,
+    LearnedFundamentalSelector,
+    LearnedScoreConfigFactory,
+    XGBoostFundamentalModel,
+)
+
+panel = FundamentalLearningPanelBuilder(
+    frequency="quarterly",
+    trailing_periods=20,
+    horizon_months=12,
+    reporting_lag_days=60,
+).build(["AAPL", "MSFT", "NVDA", "KO"])
+
+model = XGBoostFundamentalModel(group_by="sector")
+model.fit(panel, target="forward_total_return_12m")
+
+configs = LearnedScoreConfigFactory(max_features=15).from_impact_report(
+    model.impact_report_
+)
+
+selector = LearnedFundamentalSelector(configs, group_by="sector")
+ranking = selector.rank(["AAPL", "MSFT", "NVDA", "KO"])
+selected = selector.select_top(ranking, top_k=3)
+```
+
+Este flujo aprende pesos con datos históricos, pero el ranking final sigue
+pasando por `score_fundamentals`.
+
 ## Relación Con La Guía Heredada
 
 La guía anterior `workflows.md` conserva ejemplos y notas del flujo original.
 Este documento funciona como ruta secuencial nueva. Cuando haya duplicación, la
 serie numerada debe considerarse la entrada recomendada.
-

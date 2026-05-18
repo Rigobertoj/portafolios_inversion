@@ -170,3 +170,17 @@ quality_config = FundamentalScoreConfig(
 ```
 
 Después se puede pasar a `FundamentalSelector(score_config=quality_config)`.
+
+## Pesos Aprendidos
+
+La extensión aprendida no cambia la fórmula del score. `XGBoostFundamentalModel`
+produce un `impact_report_` y `LearnedScoreConfigFactory` convierte esos
+impactos en pesos normalizados dentro de `MetricSignalSpec`.
+
+Esto permite que el score operativo siga siendo auditable:
+
+```text
+modelo estadístico -> adjusted_impact -> weight -> score_fundamentals
+```
+
+El detalle del flujo vive en `11_learned_fundamental_scoring.md`.

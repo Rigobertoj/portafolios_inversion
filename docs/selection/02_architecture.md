@@ -39,9 +39,14 @@ versión agrega una ruta secuencial y una lectura orientada a responsabilidades.
 src/selection/
 ├── __init__.py
 ├── fundamentals.py
+├── fundamental_targets.py
+├── fundamental_panel.py
 ├── fundamental_metrics.py
 ├── fundamental_scorers.py
 ├── fundamental_selector.py
+├── learned_fundamental_scorers.py
+├── learned_fundamental_selector.py
+├── xgboost_fundamental_model.py
 └── correlation_selector.py
 ```
 
@@ -55,6 +60,8 @@ decisión metodológica
         |
         +-- ruta fundamental -> métricas -> score -> ranking -> selected_tickers
         |
+        +-- ruta fundamental aprendida -> panel -> XGBoost -> pesos -> score
+        |
         +-- ruta correlación -> retornos -> correlación -> ranking -> selected_tickers
 ```
 
@@ -64,9 +71,14 @@ decisión metodológica
 |---|---|---|
 | `__init__.py` | Define la API pública de `src.selection`. | Interfaz pública |
 | `fundamentals.py` | Descarga y normaliza datos fundamentales de Yahoo Finance. | Datos |
+| `fundamental_targets.py` | Alinea fundamentales con retornos forward de precio y dividendos. | Targets |
+| `fundamental_panel.py` | Construye paneles históricos con señales `metric__signal`. | Research |
 | `fundamental_metrics.py` | Convierte estados financieros en métricas comparables. | Transformación |
 | `fundamental_scorers.py` | Define señales, pesos, normalizadores y score compuesto. | Modelo |
 | `fundamental_selector.py` | Orquesta proveedor, métricas, scoring, ranking y reportes. | Workflow |
+| `xgboost_fundamental_model.py` | Ajusta modelos no lineales y reporta impactos por señal. | Research |
+| `learned_fundamental_scorers.py` | Convierte impactos aprendidos en `FundamentalScoreConfig`. | Modelo |
+| `learned_fundamental_selector.py` | Aplica configs aprendidas por sector o industria. | Workflow |
 | `correlation_selector.py` | Rankea activos por correlación y construye candidatos diversificados. | Ruta estadística |
 
 ## Arquitectura Fundamental
@@ -81,6 +93,25 @@ FundamentalSelector
   -> score_fundamentals
   -> selection_report
 ```
+
+## Arquitectura Fundamental Aprendida
+
+La ruta aprendida agrega una etapa de research antes del scorer operativo:
+
+```text
+FundamentalLearningPanelBuilder
+  -> build_metric_history_frame
+  -> build_forward_return_targets
+  -> add_signal_features
+  -> XGBoostFundamentalModel.fit
+  -> impact_report_
+  -> LearnedScoreConfigFactory
+  -> LearnedFundamentalSelector
+  -> score_fundamentals
+```
+
+La dependencia de `xgboost` queda aislada en `xgboost_fundamental_model.py`.
+Los selectores value/growth no necesitan instalarla.
 
 La separación es importante porque cada capa responde una pregunta distinta:
 
@@ -138,4 +169,3 @@ Ese contrato puede alimentar:
 - `backtesting`, para simular estrategias.
 - `risk`, para reportar exposición y pérdidas.
 - notebooks, para investigación y análisis manual.
-

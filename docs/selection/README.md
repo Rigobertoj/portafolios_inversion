@@ -36,6 +36,7 @@ vive en `00_index.md`.
 | 08 | [08_api_reference.md](08_api_reference.md) | API narrativa. |
 | 09 | [09_validation_and_edge_cases.md](09_validation_and_edge_cases.md) | Validación y límites. |
 | 10 | [10_glossary.md](10_glossary.md) | Glosario del módulo. |
+| 11 | [11_learned_fundamental_scoring.md](11_learned_fundamental_scoring.md) | Scoring aprendido con XGBoost. |
 
 ## Descripción Del Módulo
 
@@ -60,6 +61,9 @@ temporal de análisis:
   cambio histórico promedio.
 - Catálogo fundamental: `FUNDAMENTAL_METRIC_SIGNAL_SPECS` expone las métricas
   disponibles como componentes `MetricSignalSpec`.
+- Scoring fundamental aprendido: construye targets forward, entrena modelos
+  tipo XGBoost por grupo y convierte impactos en pesos compatibles con el
+  scorer existente.
 
 ## Estructura
 
@@ -68,9 +72,14 @@ src/selection/
 ├── __init__.py
 ├── correlation_selector.py
 ├── fundamentals.py
+├── fundamental_panel.py
 ├── fundamental_metrics.py
 ├── fundamental_scorers.py
-└── fundamental_selector.py
+├── fundamental_selector.py
+├── fundamental_targets.py
+├── learned_fundamental_scorers.py
+├── learned_fundamental_selector.py
+└── xgboost_fundamental_model.py
 ```
 
 ## Documentación
@@ -85,6 +94,8 @@ src/selection/
   artículo explicativo de selección por correlación y diversificación.
 - [06_scoring_model.md](06_scoring_model.md): detalle del sistema
   `MetricSignalSpec`, normalización, pesos y `score_coverage`.
+- [11_learned_fundamental_scoring.md](11_learned_fundamental_scoring.md):
+  flujo para aprender ponderadores fundamentales con XGBoost.
 - [architecture.md](architecture.md): arquitectura lineal del módulo, rutas,
   contratos de salida y relación con los diagramas.
 - [api_reference.md](api_reference.md): referencia de clases, atributos, métodos y funciones.

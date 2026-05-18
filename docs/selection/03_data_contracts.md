@@ -84,6 +84,8 @@ La combinación define el universo estadístico sobre el que se calculan retorno
 | `prices_by_group` | `dict[str, DataFrame]` | Precios usados por grupo en correlación. |
 | `returns_by_group` | `dict[str, DataFrame]` | Retornos usados por grupo. |
 | `ranking_by_group` | `pandas.DataFrame` | Ranking de baja correlación por grupo. |
+| `learning_panel` | `pandas.DataFrame` | Panel histórico con señales y targets forward. |
+| `impact_report_` | `pandas.DataFrame` | Impactos aprendidos por modelo, grupo y señal. |
 
 ## Contratos De Salida
 
@@ -101,6 +103,19 @@ Columnas esperadas:
 - `fundamental_score`
 - `score_coverage`
 - `strategy`
+
+### Panel Fundamental Aprendido
+
+`FundamentalLearningPanelBuilder.build(...)` devuelve una tabla larga con:
+
+- identificadores: `ticker`, `period`, `sector`, `industry`
+- fechas de target: `available_at`, `target_end_at`
+- señales: columnas como `roe__level` o `revenue__yoy_change`
+- precios de target: `entry_price`, `exit_price`
+- targets: `forward_price_return_12m`, `forward_dividend_return_12m`,
+  `forward_total_return_12m`
+
+El sufijo del target cambia según `horizon_months`.
 
 ### Selección Top-K
 
@@ -145,6 +160,13 @@ En `FundamentalSelector`:
   `rank_over_time` o `rank` cuando hay señales históricas.
 - `ranking_` existe después de `rank`.
 - `ranking_history_` existe después de `rank_over_time`.
+
+En `XGBoostFundamentalModel`:
+
+- `impact_report_` existe después de `fit`.
+- `training_summary_` resume observaciones, features y rank IC por grupo.
+- `models_` contiene modelos ajustados por grupo cuando la dependencia
+  opcional `xgboost` o un estimador inyectado está disponible.
 
 Estos estados no deben tratarse como parámetros de entrada. Son evidencia
 auditable del último flujo ejecutado.

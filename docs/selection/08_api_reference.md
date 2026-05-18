@@ -47,6 +47,8 @@ referencia heredada completa vive en `api_reference.md`.
 - `FUNDAMENTAL_METRIC_SIGNAL_SPECS`
 - `fundamental_metric_signal_specs`
 - builders de métricas
+- builders de paneles y targets forward
+- scoring aprendido con XGBoost
 - funciones de scoring
 
 ## Clases Principales
@@ -61,6 +63,10 @@ referencia heredada completa vive en `api_reference.md`.
 | `ValueScoreConfig` | Configuración default value. |
 | `GrowthScoreConfig` | Configuración default growth. |
 | `CorrelationPortfolioSelector` | Selector por baja correlación. |
+| `FundamentalLearningPanelBuilder` | Constructor de paneles históricos para research. |
+| `XGBoostFundamentalModel` | Modelo no lineal para aprender impacto de señales. |
+| `LearnedScoreConfigFactory` | Convierte impactos en `FundamentalScoreConfig`. |
+| `LearnedFundamentalSelector` | Selector con configs aprendidas por grupo. |
 
 ## Funciones Principales
 
@@ -70,6 +76,9 @@ referencia heredada completa vive en `api_reference.md`.
 | `build_metrics_frame` | Construye tabla de métricas para varios registros. |
 | `build_fundamental_metric_history` | Construye historia de métricas por ticker. |
 | `build_metric_history_frame` | Construye tabla histórica larga. |
+| `build_forward_return_targets` | Alinea métricas históricas con retornos forward. |
+| `build_fundamental_learning_panel` | Construye panel de señales y targets. |
+| `candidate_feature_columns` | Lista features `metric__signal` útiles para modelos. |
 | `score_fundamentals` | Calcula ranking fundamental actual. |
 | `score_fundamentals_over_time` | Calcula ranking por periodo. |
 | `fundamental_metric_signal_specs` | Genera specs para columnas fundamentales. |
@@ -93,6 +102,14 @@ referencia heredada completa vive en `api_reference.md`.
 | `prices_by_group` | `rank_within_groups` | Precios usados por grupo. |
 | `returns_by_group` | `rank_within_groups` | Retornos usados por grupo. |
 | `ranking_by_group` | `rank_within_groups` | Ranking por menor correlación. |
+
+### `XGBoostFundamentalModel`
+
+| Atributo | Se Llena Cuando | Interpretación |
+|---|---|---|
+| `impact_report_` | `fit` | Importancia, dirección, estabilidad, cobertura e impacto ajustado por señal. |
+| `training_summary_` | `fit` | Observaciones, features y diagnóstico fuera de muestra por grupo. |
+| `models_` | `fit` | Estimadores ajustados por grupo. |
 
 ## Cómo Leer La Referencia Heredada
 
