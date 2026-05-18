@@ -151,8 +151,9 @@ class PerformanceMetricsCalculator:
                 data[column] = pd.Series(dtype=float, name=column)
                 continue
             previous = wealth.shift(1)
-            previous.iloc[0] = self.initial_value
-            data[column] = (wealth / previous - 1.0).rename(column)
+            if not np.isclose(float(wealth.iloc[0]), float(self.initial_value)):
+                previous.iloc[0] = self.initial_value
+            data[column] = (wealth / previous - 1.0).dropna().rename(column)
         return pd.DataFrame(data)
 
     def _metric_returns(self) -> pd.DataFrame:

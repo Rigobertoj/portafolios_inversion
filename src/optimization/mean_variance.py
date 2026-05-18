@@ -16,7 +16,7 @@ from scipy.optimize import minimize
 
 from ..portfolio.metrics_basic import PortfolioBasicMetrics
 from ..portfolio.portfolio import Portfolio
-from ..research.assets_research import AssetsResearch
+from ..selection.assets_research import AssetsResearch
 from .configs import MinimumVarianceConfig, OptimizationConfig
 from .results import OptimizationResult
 
@@ -26,7 +26,7 @@ class PortfolioOptimization(AssetsResearch):
     Backward-compatible mean-variance optimizer built on the new research layer.
 
     This class keeps the familiar constructor used across notebooks and legacy
-    code while sourcing prices and returns from `src.research.AssetsResearch`.
+    code while sourcing prices and returns from `src.selection.AssetsResearch`.
     The optimization formulas are implemented locally so the new optimization
     package no longer depends on the legacy asset-allocation backend.
 

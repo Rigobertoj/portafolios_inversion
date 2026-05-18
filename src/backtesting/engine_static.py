@@ -12,7 +12,7 @@ from typing import Dict, Optional, Sequence
 import pandas as pd
 
 from ..portfolio.performance_metrics import PerformanceMetricsCalculator
-from ..research.assets_research import AssetsResearch
+from ..selection.assets_research import AssetsResearch
 from ._helpers import normalize_benchmark_prices, normalize_prices, slice_time_window
 from .results import (
     BacktestConfig,
@@ -226,6 +226,17 @@ class Backtester:
         evolution = (
             self.config.initial_capital * (1.0 + portfolio_returns).cumprod()
         ).rename(allocation.name)
+        initial_date = pd.Timestamp(prices_backtest.index[0])
+        evolution = pd.concat(
+            [
+                pd.Series(
+                    [float(self.config.initial_capital)],
+                    index=[initial_date],
+                    name=allocation.name,
+                ),
+                evolution,
+            ]
+        )
 
         return BacktestStrategyResult(
             name=allocation.name,
@@ -340,6 +351,16 @@ class Backtester:
         benchmark_evolution = (
             self.config.initial_capital * (1.0 + benchmark_returns).cumprod()
         ).rename(benchmark.name)
+        benchmark_evolution = pd.concat(
+            [
+                pd.Series(
+                    [float(self.config.initial_capital)],
+                    index=[pd.Timestamp(benchmark.index[0])],
+                    name=benchmark.name,
+                ),
+                benchmark_evolution,
+            ]
+        )
         return benchmark_returns, benchmark_evolution
 
     def _benchmark_returns_from_prices(

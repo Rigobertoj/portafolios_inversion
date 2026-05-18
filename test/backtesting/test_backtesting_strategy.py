@@ -73,10 +73,14 @@ def test_backtester_runs_mean_variance_strategies_with_benchmark_from_provided_p
         assert strategy_result.evolution.name == strategy_result.name
         assert strategy_result.portfolio_returns.name == strategy_result.name
         assert strategy_result.optimization_result.success
+        assert strategy_result.evolution.index[0] == result.prices_backtest.index[0]
+        assert strategy_result.evolution.iloc[0] == config.initial_capital
         np.testing.assert_allclose(strategy_result.weights.sum(), 1.0)
 
     assert "Pasiva" in result.evolution.columns
     assert "Pasiva" in result.returns.columns
+    assert result.evolution.index[0] == result.prices_backtest.index[0]
+    assert result.evolution.iloc[0]["Pasiva"] == config.initial_capital
     assert list(result.metrics.index) == [
         "Rendimiento esperado",
         "Rendimiento realizado",

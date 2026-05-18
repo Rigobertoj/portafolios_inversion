@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from ..research.assets_research import yf
+from .assets_research import yf
 
 
 @dataclass(init=False)

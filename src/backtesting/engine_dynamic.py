@@ -367,6 +367,16 @@ class DynamicBacktester(Backtester):
         weights_history.index.name = "date"
         portfolio_returns = pd.Series(returns_rows, name=strategy.name).sort_index()
         evolution = pd.Series(evolution_rows, name=strategy.name).sort_index()
+        evolution = pd.concat(
+            [
+                pd.Series(
+                    [float(self.config.initial_capital)],
+                    index=[pd.Timestamp(prices_backtest.index[0])],
+                    name=strategy.name,
+                ),
+                evolution,
+            ]
+        )
         turnover = pd.Series(turnover_rows, name=strategy.name).sort_index()
         transaction_costs = pd.Series(cost_rows, name=strategy.name).sort_index()
         pre_back_metrics = pd.DataFrame(pre_back_rows)

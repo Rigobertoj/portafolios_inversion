@@ -14,7 +14,7 @@ import pandas as pd
 
 from ..optimization.mean_variance import PortfolioOptimization
 from ..optimization.postmodern import PortfolioOptimizationPostModern
-from ..research.assets_research import AssetsResearch
+from ..selection.assets_research import AssetsResearch
 
 
 class PortfolioElementaryMetrics(PortfolioOptimization):

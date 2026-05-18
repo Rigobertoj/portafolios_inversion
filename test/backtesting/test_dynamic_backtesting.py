@@ -76,6 +76,8 @@ def test_dynamic_backtester_rebalances_and_records_turnover_and_costs():
     assert "Cycling" in result.returns.columns
     assert "Cycling" in result.evolution.columns
     assert not result.evolution.empty
+    assert result.evolution.index[0] == result.prices_backtest.index[0]
+    assert result.evolution.iloc[0]["Cycling"] == config.initial_capital
 
     weights = result.weights_history
     assert "strategy" in weights.columns
